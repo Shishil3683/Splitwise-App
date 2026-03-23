@@ -12,7 +12,7 @@ class HomePage extends StatefulWidget {
 
 class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
   int tabIndex = 0;
-
+  bool showSuccess = false;
   final amountCtrl = TextEditingController();
   final noteCtrl = TextEditingController();
   final messageCtrl = TextEditingController();
@@ -25,6 +25,7 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
   String payer = 'A';
   String currentUser = 'A';
   String selectedToUser = 'B';
+  
   int touchedIndex = -1;
   late AnimationController _animationController;
 
@@ -36,6 +37,20 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
       duration: const Duration(milliseconds: 1200),
     );
     _animationController.forward();
+  }
+
+  void _playSuccessAnimation() {
+    setState(() {
+      showSuccess = true;
+    });
+
+    Future.delayed(const Duration(milliseconds: 700), () {
+      if (mounted) {
+        setState(() {
+          showSuccess = false;
+        });
+      }
+    });
   }
 
   @override
@@ -52,113 +67,123 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
   @override
   Widget build(BuildContext context) {
     final s = context.watch<ExpenseService>();
-    return Scaffold(
-      extendBodyBehindAppBar: true,
-      appBar: AppBar(
-        title: const Text(
-          'Splitwise',
-          style: TextStyle(
-            fontWeight: FontWeight.w600,
-            fontSize: 20,
-            color: Colors.black,
-          ),
-        ),
-        centerTitle: true,
-        backgroundColor: Colors.white,
-        elevation: 0,
-
-        actions: [
-          Padding(
-            padding: const EdgeInsets.only(right: 12),
-
-            child: DropdownButtonHideUnderline(
-              child: DropdownButton<String>(
-                value: currentUser,
-
-                icon: const Icon(Icons.arrow_drop_down),
-
-                items: s.users.map((u) {
-                  return DropdownMenuItem(
-                    value: u.id,
-                    child: Row(
-                      children: [
-                        CircleAvatar(
-                          radius: 12,
-                          backgroundImage: NetworkImage(
-                            "https://api.dicebear.com/7.x/personas/png?seed=${u.name}",
-                          ),
-                        ),
-
-                        const SizedBox(width: 8),
-
-                        Text(
-                          u.name,
-                          style: const TextStyle(fontWeight: FontWeight.w600),
-                        ),
-                      ],
-                    ),
-                  );
-                }).toList(),
-
-                onChanged: (v) {
-                  if (v != null) {
-                    setState(() {
-                      currentUser = v;
-                    });
-                  }
-                },
+    return Stack(
+      children: [
+        Scaffold(
+          extendBodyBehindAppBar: true,
+          appBar: AppBar(
+            title: const Text(
+              'Splitwise',
+              style: TextStyle(
+                fontWeight: FontWeight.w600,
+                fontSize: 20,
+                color: Colors.black,
               ),
             ),
-          ),
-        ],
-      ),
-      bottomNavigationBar: BottomNavigationBar(
-        currentIndex: tabIndex,
-        onTap: (index) => setState(() => tabIndex = index),
-        type: BottomNavigationBarType.fixed,
-        selectedItemColor: Colors.black,
-        unselectedItemColor: Colors.grey,
-        backgroundColor: Colors.white,
-        elevation: 0,
-        items: const [
-          BottomNavigationBarItem(
-            icon: Icon(Icons.dashboard_rounded),
-            label: 'Dashboard',
-          ),
-          BottomNavigationBarItem(
-            icon: Icon(Icons.add_circle_rounded),
-            label: 'Add',
-          ),
-          BottomNavigationBarItem(
-            icon: Icon(Icons.payment_rounded),
-            label: 'Settle',
-          ),
-          BottomNavigationBarItem(
-            icon: Icon(Icons.message_rounded),
-            label: 'Chat',
-          ),
-        ],
-      ),
-      floatingActionButton: tabIndex == 0
-          ? FloatingActionButton(
-              onPressed: () {
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (_) => Scaffold(body: _usersTab(s)),
+            centerTitle: true,
+            backgroundColor: Colors.white,
+            elevation: 0,
+
+            actions: [
+              Padding(
+                padding: const EdgeInsets.only(right: 12),
+
+                child: DropdownButtonHideUnderline(
+                  child: DropdownButton<String>(
+                    value: currentUser,
+
+                    icon: const Icon(Icons.arrow_drop_down),
+
+                    items: s.users.map((u) {
+                      return DropdownMenuItem(
+                        value: u.id,
+                        child: Row(
+                          children: [
+                            CircleAvatar(
+                              radius: 12,
+                              backgroundImage: NetworkImage(
+                                "https://api.dicebear.com/7.x/personas/png?seed=${u.name}",
+                              ),
+                            ),
+
+                            const SizedBox(width: 8),
+
+                            Text(
+                              u.name,
+                              style: const TextStyle(
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                          ],
+                        ),
+                      );
+                    }).toList(),
+
+                    onChanged: (v) {
+                      if (v != null) {
+                        setState(() {
+                          currentUser = v;
+                        });
+                      }
+                    },
                   ),
-                );
-              },
-              backgroundColor: const Color(0xFF4F46E5),
-              child: const Icon(Icons.group_add_rounded, size: 28),
-            )
-          : null,
-      body: [
-        _dashboardTab(s),
-        _addExpenseTab(s),
-        _settlePaymentTab(s),
-        _messagesTab(s),
-      ][tabIndex],
+                ),
+              ),
+            ],
+          ),
+          bottomNavigationBar: BottomNavigationBar(
+            currentIndex: tabIndex,
+            onTap: (index) => setState(() => tabIndex = index),
+            type: BottomNavigationBarType.fixed,
+            selectedItemColor: Colors.black,
+            unselectedItemColor: Colors.grey,
+            backgroundColor: Colors.white,
+            elevation: 0,
+            items: const [
+              BottomNavigationBarItem(
+                icon: Icon(Icons.dashboard_rounded),
+                label: 'Dashboard',
+              ),
+              BottomNavigationBarItem(
+                icon: Icon(Icons.add_circle_rounded),
+                label: 'Add',
+              ),
+              BottomNavigationBarItem(
+                icon: Icon(Icons.payment_rounded),
+                label: 'Settle',
+              ),
+              BottomNavigationBarItem(
+                icon: Icon(Icons.message_rounded),
+                label: 'Chat',
+              ),
+            ],
+          ),
+          floatingActionButton: tabIndex == 0
+              ? FloatingActionButton(
+                  onPressed: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) {
+                          final s = context.watch<ExpenseService>();
+                          return Scaffold(body: _usersTab(s));
+                        },
+                      ),
+                    );
+                  },
+                  backgroundColor: const Color(0xFF4F46E5),
+                  child: const Icon(Icons.group_add_rounded, size: 28),
+                )
+              : null,
+          body: [
+            _dashboardTab(s),
+            _addExpenseTab(s),
+            _settlePaymentTab(s),
+            _messagesTab(s),
+          ][tabIndex],
+        ),
+        _successOverlay(),
+      ],
     );
   }
 
@@ -200,6 +225,7 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
               );
 
               Navigator.pop(ctx);
+              _playSuccessAnimation();
             },
             child: const Text('Pay Now'),
           ),
@@ -222,8 +248,9 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
     final totalYouOwe = balanceCards
         .where((e) => e.value < 0)
         .fold<double>(0, (sum, e) => sum + e.value.abs());
-    final totalExpenses = s.expenses.fold<double>(0, (sum, e) => sum + e.total);
-
+    final totalExpenses = s.expenses
+        .where((e) => e.participants.contains(currentUser))
+        .fold<double>(0, (sum, e) => sum + e.total);
     return Container(
       color: const Color(0xFFF8F8F8),
       child: SingleChildScrollView(
@@ -525,7 +552,10 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
                 ),
               )
             else
-              ...s.expenses.take(5).map((exp) {
+              ...s.expenses
+                  .where((e) => e.participants.contains(currentUser))
+                  .take(5)
+                  .map((exp) {
                 final payer = s.users.firstWhere(
                   (u) => u.id == exp.payerId,
                   orElse: () => UserModel(id: exp.payerId, name: exp.payerId),
@@ -657,7 +687,10 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
       Colors.teal,
     ];
 
-    final chartExpenses = s.expenses.take(5).toList();
+    final chartExpenses = s.expenses
+        .where((e) => e.participants.contains(currentUser))
+        .take(5)
+        .toList();
 
     final chartData = chartExpenses
         .map((e) => MapEntry(e.note, e.total))
@@ -837,6 +870,27 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
             ),
           ),
         ],
+      ),
+    );
+  }
+
+  Widget _successOverlay() {
+    if (!showSuccess) return const SizedBox();
+
+    return Positioned.fill(
+      child: Container(
+        color: Colors.black.withOpacity(0.25),
+        child: Center(
+          child: Container(
+            width: 120,
+            height: 120,
+            decoration: BoxDecoration(
+              color: Colors.green.shade600,
+              shape: BoxShape.circle,
+            ),
+            child: const _AnimatedCheck(),
+          ),
+        ),
       ),
     );
   }
@@ -1182,14 +1236,10 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
                         toUserId: selectedToUser,
                         amount: amount,
                       );
+
+                      _playSuccessAnimation();
                       paymentAmountCtrl.clear();
                       setState(() => tabIndex = 0);
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        SnackBar(
-                          content: const Text('✓ Payment recorded!'),
-                          backgroundColor: Colors.green.shade700,
-                        ),
-                      );
                     } catch (e) {
                       ScaffoldMessenger.of(
                         context,
@@ -1785,4 +1835,65 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
       ),
     );
   }
+}
+
+class _AnimatedCheck extends StatefulWidget {
+  const _AnimatedCheck();
+
+  @override
+  State<_AnimatedCheck> createState() => _AnimatedCheckState();
+}
+
+class _AnimatedCheckState extends State<_AnimatedCheck>
+    with SingleTickerProviderStateMixin {
+  late AnimationController controller;
+
+  @override
+  void initState() {
+    super.initState();
+    controller = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 450),
+    )..forward();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return CustomPaint(painter: _CheckPainter(controller));
+  }
+
+  @override
+  void dispose() {
+    controller.dispose();
+    super.dispose();
+  }
+}
+
+class _CheckPainter extends CustomPainter {
+  final Animation<double> animation;
+
+  _CheckPainter(this.animation) : super(repaint: animation);
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final paint = Paint()
+      ..color = Colors.white
+      ..strokeWidth = 8
+      ..strokeCap = StrokeCap.round
+      ..style = PaintingStyle.stroke;
+
+    final path = Path();
+
+    path.moveTo(size.width * 0.28, size.height * 0.52);
+    path.lineTo(size.width * 0.45, size.height * 0.68);
+    path.lineTo(size.width * 0.72, size.height * 0.38);
+
+    final metric = path.computeMetrics().first;
+    final extractPath = metric.extractPath(0, metric.length * animation.value);
+
+    canvas.drawPath(extractPath, paint);
+  }
+
+  @override
+  bool shouldRepaint(covariant CustomPainter oldDelegate) => true;
 }
