@@ -1,6 +1,9 @@
 # splitwise_flutter_web
 
-A new Flutter project.
+Web App based on Flutter which lets users to settle their pending dues.
+App contains option to add user, add new expense which is to be splitted, it also allows users to pay the dues.
+Dashboard currently has a pie chart which shows expense details on hover.
+Some features are yet to be implemented. Feel free to contribute ☺️
 
 ## Getting Started
 
