@@ -94,16 +94,24 @@ class ExpenseService extends ChangeNotifier {
         participants.add(currentUserId);
       }
 
-      final count = participants.length;
-      if (count < 2) continue;
+      // Use custom splits if available
+      if (exp.splits != null && exp.splits!.isNotEmpty) {
+        exp.splits!.forEach((user, amount) {
+          if (user == exp.payerId) return;
 
-      final rawShare = exp.total / count;
-      final share = (rawShare * 100).roundToDouble() / 100;
+          pairwiseOwes[user]?[exp.payerId] =
+              (pairwiseOwes[user]?[exp.payerId] ?? 0) + amount;
+        });
+      } else {
+        final count = participants.length;
+        final share = exp.total / count;
 
-      for (final member in participants) {
-        if (member == exp.payerId) continue;
-        pairwiseOwes[member]?[exp.payerId] =
-            (pairwiseOwes[member]?[exp.payerId] ?? 0) + share;
+        for (final member in participants) {
+          if (member == exp.payerId) continue;
+
+          pairwiseOwes[member]?[exp.payerId] =
+              (pairwiseOwes[member]?[exp.payerId] ?? 0) + share;
+        }
       }
     }
 
@@ -134,6 +142,7 @@ class ExpenseService extends ChangeNotifier {
     required String payerId,
     required List<String> participants,
     required String note,
+    Map<String, double>? splits,
   }) {
     if (total <= 0) throw Exception('Amount must be > 0');
     if (!participants.contains(payerId)) participants.add(payerId);
@@ -147,6 +156,7 @@ class ExpenseService extends ChangeNotifier {
       payerId: payerId,
       note: note,
       participants: participants,
+      splits: splits,
       createdAt: DateTime.now(),
     );
 
@@ -180,17 +190,12 @@ class ExpenseService extends ChangeNotifier {
         total: total,
         payerId: payerId,
         participants: splits.keys.toList(),
+        splits: splits,
         note: note,
       ),
     );
 
-    splits.forEach((user, amount) {
-      if (user == payerId) return;
-
-      pairwiseOwes[user] ??= {};
-      pairwiseOwes[user]![payerId] =
-          (pairwiseOwes[user]![payerId] ?? 0) + amount;
-    });
+   
 
     notifyListeners();
   }

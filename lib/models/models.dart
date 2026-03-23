@@ -3,11 +3,21 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 class UserModel {
   final String id;
   final String name;
-  UserModel({required this.id, required this.name});
-  Map<String, dynamic> toMap() => {'name': name};
+  final String avatar;
+
+  UserModel({required this.id, required this.name, String? avatar})
+    : avatar = avatar ?? "https://api.dicebear.com/7.x/personas/png?seed=$name";
+
+  Map<String, dynamic> toMap() => {'name': name, 'avatar': avatar};
+
   factory UserModel.fromDoc(DocumentSnapshot doc) {
     final d = doc.data() as Map<String, dynamic>;
-    return UserModel(id: doc.id, name: d['name'] ?? '');
+
+    return UserModel(
+      id: doc.id,
+      name: d['name'] ?? '',
+      avatar: d['avatar'], // safe because constructor handles null
+    );
   }
 }
 
@@ -25,7 +35,6 @@ class ExpenseShare {
         paid: (m['paid'] as num).toDouble(),
       );
 }
-
 
 class ExpenseModel {
   final String id;
@@ -48,6 +57,7 @@ class ExpenseModel {
 
   Map<String, dynamic> toMap() {
     return {
+      'id': id,
       'total': total,
       'payerId': payerId,
       'note': note,
@@ -56,26 +66,6 @@ class ExpenseModel {
       'splits': splits,
     };
   }
-
-  factory ExpenseModel.fromDoc(DocumentSnapshot doc) {
-    final d = doc.data() as Map<String, dynamic>;
-
-    return ExpenseModel(
-      id: doc.id,
-      total: (d['total'] as num).toDouble(),
-      payerId: d['payerId'] as String,
-      note: d['note'] as String? ?? '',
-      participants: List<String>.from(d['participants'] ?? []),
-      createdAt: (d['createdAt'] as Timestamp).toDate(),
-      splits: d['splits'] != null
-          ? Map<String, double>.from(
-              (d['splits'] as Map).map(
-                (k, v) => MapEntry(k as String, (v as num).toDouble()),
-              ),
-            )
-          : null,
-    );
-  }
 }
 
 class ExpenseItem {
@@ -83,8 +73,10 @@ class ExpenseItem {
   final double amount;
   ExpenseItem({required this.category, required this.amount});
   Map<String, dynamic> toMap() => {'category': category, 'amount': amount};
-  factory ExpenseItem.fromMap(Map<String, dynamic> m) =>
-      ExpenseItem(category: m['category'] as String, amount: (m['amount'] as num).toDouble());
+  factory ExpenseItem.fromMap(Map<String, dynamic> m) => ExpenseItem(
+    category: m['category'] as String,
+    amount: (m['amount'] as num).toDouble(),
+  );
 }
 
 class MessageModel {

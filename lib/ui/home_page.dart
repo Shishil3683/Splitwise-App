@@ -21,6 +21,7 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
   final paymentAmountCtrl = TextEditingController();
 
   final selectedUsers = <String>{};
+  final Map<String, TextEditingController> splitControllers = {};
   String payer = 'A';
   String currentUser = 'A';
   String selectedToUser = 'B';
@@ -65,6 +66,51 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
         centerTitle: true,
         backgroundColor: Colors.white,
         elevation: 0,
+
+        actions: [
+          Padding(
+            padding: const EdgeInsets.only(right: 12),
+
+            child: DropdownButtonHideUnderline(
+              child: DropdownButton<String>(
+                value: currentUser,
+
+                icon: const Icon(Icons.arrow_drop_down),
+
+                items: s.users.map((u) {
+                  return DropdownMenuItem(
+                    value: u.id,
+                    child: Row(
+                      children: [
+                        CircleAvatar(
+                          radius: 12,
+                          backgroundImage: NetworkImage(
+                            "https://api.dicebear.com/7.x/personas/png?seed=${u.name}",
+                          ),
+                        ),
+
+                        const SizedBox(width: 8),
+
+                        Text(
+                          u.name,
+                          style: const TextStyle(fontWeight: FontWeight.w600),
+                        ),
+                      ],
+                    ),
+                  );
+                }).toList(),
+
+                onChanged: (v) {
+                  if (v != null) {
+                    setState(() {
+                      currentUser = v;
+                    });
+                  }
+                },
+              ),
+            ),
+          ),
+        ],
       ),
       bottomNavigationBar: BottomNavigationBar(
         currentIndex: tabIndex,
@@ -91,18 +137,27 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
             icon: Icon(Icons.message_rounded),
             label: 'Chat',
           ),
-          BottomNavigationBarItem(
-            icon: Icon(Icons.people_rounded),
-            label: 'Users',
-          ),
         ],
       ),
+      floatingActionButton: tabIndex == 0
+          ? FloatingActionButton(
+              onPressed: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) => Scaffold(body: _usersTab(s)),
+                  ),
+                );
+              },
+              backgroundColor: const Color(0xFF4F46E5),
+              child: const Icon(Icons.group_add_rounded, size: 28),
+            )
+          : null,
       body: [
         _dashboardTab(s),
         _addExpenseTab(s),
         _settlePaymentTab(s),
         _messagesTab(s),
-        _usersTab(s),
       ][tabIndex],
     );
   }
@@ -310,33 +365,9 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
                           },
                     child: Container(
                       decoration: BoxDecoration(
-                        gradient: isOwed
-                            ? LinearGradient(
-                                colors: [
-                                  Colors.red.shade50,
-                                  Colors.orangeAccent.shade100,
-                                ],
-                              )
-                            : LinearGradient(
-                                colors: [
-                                  Colors.blue.shade50,
-                                  Colors.cyan.shade100,
-                                ],
-                              ),
-                        border: Border.all(
-                          color: isOwed
-                              ? Colors.red.shade300
-                              : Colors.blue.shade300,
-                          width: 2,
-                        ),
-                        borderRadius: BorderRadius.circular(14),
-                        boxShadow: [
-                          BoxShadow(
-                            color: (isOwed ? Colors.red : Colors.blue)
-                                .withOpacity(0.15),
-                            blurRadius: 8,
-                          ),
-                        ],
+                        color: Colors.white,
+                        borderRadius: BorderRadius.circular(16),
+                        border: Border.all(color: const Color(0xFFE5E7EB)),
                       ),
                       padding: const EdgeInsets.all(16),
                       child: Row(
@@ -344,33 +375,9 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
                         children: [
                           Row(
                             children: [
-                              Container(
-                                width: 56,
-                                height: 56,
-                                decoration: BoxDecoration(
-                                  shape: BoxShape.circle,
-                                  gradient: LinearGradient(
-                                    colors: isOwed
-                                        ? [
-                                            Colors.red.shade400,
-                                            Colors.orange.shade400,
-                                          ]
-                                        : [
-                                            Colors.blue.shade400,
-                                            Colors.cyan.shade400,
-                                          ],
-                                  ),
-                                ),
-                                child: Center(
-                                  child: Text(
-                                    user.name[0].toUpperCase(),
-                                    style: const TextStyle(
-                                      fontWeight: FontWeight.bold,
-                                      fontSize: 22,
-                                      color: Colors.white,
-                                    ),
-                                  ),
-                                ),
+                              CircleAvatar(
+                                radius: 28,
+                                backgroundImage: NetworkImage(user.avatar),
                               ),
                               const SizedBox(width: 14),
                               Column(
@@ -404,19 +411,68 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
                                   fontSize: 18,
                                   fontWeight: FontWeight.bold,
                                   color: isOwed
-                                      ? Colors.red.shade700
-                                      : Colors.blue.shade700,
+                                      ? Colors.green.shade700
+                                      : Colors.red.shade700,
                                 ),
                               ),
-                              Icon(
-                                isOwed
-                                    ? Icons.arrow_upward_rounded
-                                    : Icons.arrow_downward_rounded,
-                                color: isOwed
-                                    ? Colors.red.shade600
-                                    : Colors.blue.shade600,
-                                size: 22,
-                              ),
+
+                              const SizedBox(height: 6),
+
+                              if (!isOwed)
+                                ElevatedButton(
+                                  onPressed: () {
+                                    _showQuickSettleDialog(
+                                      context,
+                                      s,
+                                      e.key,
+                                      e.value.abs(),
+                                    );
+                                  },
+                                  style: ElevatedButton.styleFrom(
+                                    backgroundColor: Colors.green.shade600,
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: 12,
+                                      vertical: 6,
+                                    ),
+                                  ),
+                                  child: const Text(
+                                    "Pay",
+                                    style: TextStyle(fontSize: 12),
+                                  ),
+                                )
+                              else
+                                OutlinedButton(
+                                  onPressed: () {
+                                    final user = s.users.firstWhere(
+                                      (u) => u.id == e.key,
+                                      orElse: () =>
+                                          UserModel(id: e.key, name: e.key),
+                                    );
+
+                                    s.addMessage(
+                                      senderId: currentUser,
+                                      senderName: "Reminder",
+                                      message:
+                                          "🔔 Reminder: ${user.name}, please pay ₹${e.value.toStringAsFixed(2)}",
+                                    );
+
+                                    ScaffoldMessenger.of(context).showSnackBar(
+                                      const SnackBar(
+                                        content: Text("Reminder sent in chat"),
+                                      ),
+                                    );
+                                  },
+                                  style: OutlinedButton.styleFrom(
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: 12,
+                                      vertical: 6,
+                                    ),
+                                  ),
+                                  child: const Text(
+                                    "Remind",
+                                    style: TextStyle(fontSize: 12),
+                                  ),
+                                ),
                             ],
                           ),
                         ],
@@ -487,18 +543,15 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
                 return Padding(
                   padding: const EdgeInsets.only(bottom: 12),
                   child: Card(
-                    elevation: 2,
+                    elevation: 0,
                     shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(12),
+                      borderRadius: BorderRadius.circular(16),
+                      side: const BorderSide(color: Color(0xFFE5E7EB)),
                     ),
                     child: Container(
                       decoration: BoxDecoration(
-                        borderRadius: BorderRadius.circular(12),
-                        gradient: LinearGradient(
-                          colors: [Colors.white, Colors.grey.shade50],
-                          begin: Alignment.topLeft,
-                          end: Alignment.bottomRight,
-                        ),
+                        borderRadius: BorderRadius.circular(16),
+                        color: Colors.white,
                       ),
                       child: ListTile(
                         leading: Container(
@@ -604,11 +657,11 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
       Colors.teal,
     ];
 
-    final chartData = <MapEntry<String, double>>[];
+    final chartExpenses = s.expenses.take(5).toList();
 
-    for (var i = 0; i < s.expenses.length && i < 5; i++) {
-      chartData.add(MapEntry(s.expenses[i].note, s.expenses[i].total));
-    }
+    final chartData = chartExpenses
+        .map((e) => MapEntry(e.note, e.total))
+        .toList();
 
     final total = chartData.fold<double>(0, (sum, e) => sum + e.value);
 
@@ -616,9 +669,7 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(16),
-        boxShadow: [
-          BoxShadow(color: Colors.black.withOpacity(0.15), blurRadius: 16),
-        ],
+        border: Border.all(color: const Color(0xFFE5E7EB)),
       ),
       padding: const EdgeInsets.all(18),
       child: Column(
@@ -710,8 +761,8 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
                 const SizedBox(height: 16),
 
                 /// SHOW DETAILS WHEN SLICE IS TOUCHED
-                if (touchedIndex != -1)
-                  _buildExpenseDetails(s, chartData[touchedIndex].key),
+                if (touchedIndex != -1 && touchedIndex < chartExpenses.length)
+                  _buildExpenseDetails(s, chartExpenses[touchedIndex]),
 
                 const SizedBox(height: 16),
 
@@ -835,25 +886,53 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
               ).textTheme.bodyLarge?.copyWith(fontWeight: FontWeight.w600),
             ),
             const SizedBox(height: 10),
-            Wrap(
-              spacing: 8,
-              children: s.users.where((u) => u.id != payer).map((u) {
-                final selected = selectedUsers.contains(u.id);
-                return FilterChip(
-                  label: Text(u.name),
-                  selected: selected,
-                  selectedColor: Colors.deepPurple.shade200,
-                  onSelected: (v) {
-                    setState(() {
-                      if (v) {
-                        selectedUsers.add(u.id);
-                      } else {
-                        selectedUsers.remove(u.id);
+            Column(
+              children: [
+                for (final u in s.users.where((u) => u.id != payer))
+                  Builder(
+                    builder: (context) {
+                      if (!splitControllers.containsKey(u.id)) {
+                        splitControllers[u.id] = TextEditingController();
                       }
-                    });
-                  },
-                );
-              }).toList(),
+
+                      return Padding(
+                        padding: const EdgeInsets.only(bottom: 10),
+                        child: Row(
+                          children: [
+                            CircleAvatar(
+                              radius: 16,
+                              backgroundImage: NetworkImage(
+                                "https://api.dicebear.com/7.x/personas/png?seed=${u.name}",
+                              ),
+                            ),
+
+                            const SizedBox(width: 10),
+
+                            Expanded(
+                              child: Text(
+                                u.name,
+                                style: const TextStyle(
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                            ),
+
+                            SizedBox(
+                              width: 120,
+                              child: TextField(
+                                controller: splitControllers[u.id],
+                                keyboardType: TextInputType.number,
+                                decoration: const InputDecoration(
+                                  hintText: "Amount",
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      );
+                    },
+                  ),
+              ],
             ),
             const SizedBox(height: 24),
             SizedBox(
@@ -863,22 +942,49 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
                   try {
                     final total = double.tryParse(amountCtrl.text.trim()) ?? 0;
                     if (total <= 0) throw Exception('Amount must be > 0');
-                    final participants = <String>{payer, ...selectedUsers};
-                    if (participants.length < 2) {
-                      throw Exception('Select at least one other person');
+
+                    final splits = <String, double>{};
+                    double enteredTotal = 0;
+
+                    for (final user in s.users) {
+                      if (user.id == payer) continue;
+
+                      final ctrl = splitControllers[user.id];
+                      if (ctrl == null) continue;
+
+                      final amount = double.tryParse(ctrl.text) ?? 0;
+                      if (amount > 0) {
+                        splits[user.id] = amount;
+                        enteredTotal += amount;
+                      }
                     }
-                    s.addExpense(
+
+                    final payerShare = total - enteredTotal;
+
+                    if (payerShare < 0) {
+                      throw Exception("Split exceeds total amount");
+                    }
+
+                    splits[payer] = payerShare;
+
+                    s.addExpenseCustom(
                       total: total,
                       payerId: payer,
-                      participants: participants.toList(),
+                      splits: splits,
                       note: noteCtrl.text.trim().isEmpty
                           ? 'Expense'
                           : noteCtrl.text.trim(),
                     );
+
                     amountCtrl.clear();
                     noteCtrl.clear();
-                    selectedUsers.clear();
+
+                    for (var c in splitControllers.values) {
+                      c.clear();
+                    }
+
                     setState(() => tabIndex = 0);
+
                     ScaffoldMessenger.of(context).showSnackBar(
                       SnackBar(
                         content: const Text('✓ Expense added!'),
@@ -1234,19 +1340,9 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
                                   MediaQuery.of(context).size.width * 0.75,
                             ),
                             decoration: BoxDecoration(
-                              gradient: isCurrentUser
-                                  ? LinearGradient(
-                                      colors: [
-                                        Colors.deepPurple.shade400,
-                                        Colors.purple.shade300,
-                                      ],
-                                    )
-                                  : LinearGradient(
-                                      colors: [
-                                        Colors.grey.shade300,
-                                        Colors.grey.shade200,
-                                      ],
-                                    ),
+                              color: isCurrentUser
+                                  ? const Color(0xFF4F46E5)
+                                  : Colors.grey.shade200,
                               borderRadius: BorderRadius.circular(14),
                             ),
                             padding: const EdgeInsets.all(12),
@@ -1438,26 +1534,10 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
                   borderRadius: BorderRadius.circular(12),
                 ),
                 child: ListTile(
-                  leading: Container(
-                    width: 40,
-                    height: 40,
-                    decoration: BoxDecoration(
-                      gradient: LinearGradient(
-                        colors: [
-                          Colors.deepPurple.shade400,
-                          Colors.purple.shade300,
-                        ],
-                      ),
-                      shape: BoxShape.circle,
-                    ),
-                    child: Center(
-                      child: Text(
-                        user.id,
-                        style: const TextStyle(
-                          color: Colors.white,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
+                  leading: CircleAvatar(
+                    radius: 20,
+                    backgroundImage: NetworkImage(
+                      "https://api.dicebear.com/7.x/personas/png?seed=${user.name}",
                     ),
                   ),
                   title: Text(
@@ -1516,15 +1596,19 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
     return result;
   }
 
-  Widget _buildExpenseDetails(ExpenseService s, String note) {
-    final exp = s.expenses.firstWhere((e) => e.note == note);
-
+  Widget _buildExpenseDetails(ExpenseService s, ExpenseModel exp) {
     final payer = s.users.firstWhere(
       (u) => u.id == exp.payerId,
       orElse: () => UserModel(id: exp.payerId, name: exp.payerId),
     );
 
-    final splitAmount = exp.total / exp.participants.length;
+    Map<String, double> splits = exp.splits ?? {};
+
+    if (splits.isEmpty && exp.participants.isNotEmpty) {
+      final equalShare = exp.total / exp.participants.length;
+
+      splits = {for (var id in exp.participants) id: equalShare};
+    }
 
     return Container(
       width: double.infinity,
@@ -1541,24 +1625,34 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
             "Expense: ${exp.note}",
             style: const TextStyle(fontWeight: FontWeight.bold),
           ),
+
           const SizedBox(height: 6),
+
           Text("Paid by: ${payer.name}"),
+
           const SizedBox(height: 6),
+
           Text("Total: ₹${exp.total.toStringAsFixed(2)}"),
+
           const SizedBox(height: 10),
+
           const Text("Split:", style: TextStyle(fontWeight: FontWeight.bold)),
-          const SizedBox(height: 4),
-          ...exp.participants.map((id) {
+
+          const SizedBox(height: 6),
+
+          ...splits.entries.map((entry) {
             final user = s.users.firstWhere(
-              (u) => u.id == id,
-              orElse: () => UserModel(id: id, name: id),
+              (u) => u.id == entry.key,
+              orElse: () => UserModel(id: entry.key, name: entry.key),
             );
 
-            if (id == exp.payerId) {
-              return Text("${user.name} paid");
+            if (entry.key == exp.payerId) {
+              return Text(
+                "${user.name} paid ₹${entry.value.toStringAsFixed(2)}",
+              );
             }
 
-            return Text("${user.name} owes ₹${splitAmount.toStringAsFixed(2)}");
+            return Text("${user.name} owes ₹${entry.value.toStringAsFixed(2)}");
           }),
         ],
       ),
@@ -1651,14 +1745,9 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
   }) {
     return Container(
       decoration: BoxDecoration(
-        gradient: LinearGradient(
-          colors: [color.withOpacity(0.15), color.withOpacity(0.08)],
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-        ),
-        border: Border.all(color: color.withOpacity(0.4), width: 1.5),
-        borderRadius: BorderRadius.circular(14),
-        boxShadow: [BoxShadow(color: color.withOpacity(0.1), blurRadius: 8)],
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: const Color(0xFFE5E7EB)),
       ),
       padding: const EdgeInsets.all(12),
       child: Column(
