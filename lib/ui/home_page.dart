@@ -152,10 +152,6 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
             currentIndex: tabIndex,
             onTap: (index) => setState(() => tabIndex = index),
             type: BottomNavigationBarType.fixed,
-            selectedItemColor: AppColors.text,
-            unselectedItemColor: Colors.grey,
-            backgroundColor: Colors.white,
-            elevation: 0,
             items: const [
               BottomNavigationBarItem(
                 icon: Icon(Icons.dashboard_rounded),
@@ -164,10 +160,6 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
               BottomNavigationBarItem(
                 icon: Icon(Icons.add_circle_rounded),
                 label: 'Add',
-              ),
-              BottomNavigationBarItem(
-                icon: Icon(Icons.payment_rounded),
-                label: 'Settle',
               ),
               BottomNavigationBarItem(
                 icon: Icon(Icons.message_rounded),
@@ -184,19 +176,26 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
                       context,
                       MaterialPageRoute(
                         builder: (context) {
-                          return Scaffold(body: _usersTab(s));
+                          return Scaffold(
+                            appBar: AppBar(
+                              title: const Text("Manage Users"),
+                              backgroundColor: Colors.white,
+                              foregroundColor: Colors.black,
+                              elevation: 0,
+                            ),
+                            body: _usersTab(s),
+                          );
                         },
                       ),
                     );
                   },
-                  backgroundColor: AppColors.primary,
+                  backgroundColor: const Color(0xFF34D399),
                   child: const Icon(Icons.group_add_rounded, size: 28),
                 )
               : null,
           body: [
             _dashboardTab(s),
             _addExpenseTab(s),
-            _settlePaymentTab(s),
             _messagesTab(s),
           ][tabIndex],
         ),
@@ -252,6 +251,50 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
     );
   }
 
+  Map<String, dynamic> _getExpenseVisual(String note) {
+    final n = note.toLowerCase();
+
+    if (n.contains("food") ||
+        n.contains("lunch") ||
+        n.contains("dinner") ||
+        n.contains("pizza") ||
+        n.contains("burger") ||
+        n.contains("restaurant")) {
+      return {"icon": Icons.restaurant, "color": Colors.orange};
+    }
+
+    if (n.contains("coffee") || n.contains("tea")) {
+      return {"icon": Icons.local_cafe, "color": Colors.brown};
+    }
+
+    if (n.contains("uber") ||
+        n.contains("cab") ||
+        n.contains("taxi") ||
+        n.contains("travel")) {
+      return {"icon": Icons.directions_car, "color": Colors.blue};
+    }
+
+    if (n.contains("petrol") || n.contains("fuel")) {
+      return {"icon": Icons.local_gas_station, "color": Colors.redAccent};
+    }
+
+    if (n.contains("grocery") ||
+        n.contains("vegetable") ||
+        n.contains("mart")) {
+      return {"icon": Icons.shopping_cart, "color": Colors.green};
+    }
+
+    if (n.contains("movie") || n.contains("netflix") || n.contains("concert")) {
+      return {"icon": Icons.movie, "color": Colors.purple};
+    }
+
+    if (n.contains("party") || n.contains("club")) {
+      return {"icon": Icons.celebration, "color": Colors.pink};
+    }
+
+    return {"icon": Icons.widgets, "color": Colors.grey};
+  }
+
   // === DASHBOARD TAB ===
   Widget _dashboardTab(ExpenseService s) {
     // Calculate balances from current user's perspective
@@ -289,7 +332,7 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
     return Container(
       color: AppColors.background,
       child: SingleChildScrollView(
-        padding: const EdgeInsets.fromLTRB(16, 100, 16, 20),
+        padding: const EdgeInsets.fromLTRB(16, 80, 16, 20),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -700,25 +743,26 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
                             color: Colors.white,
                           ),
                           child: ListTile(
-                            leading: Container(
-                              width: 50,
-                              height: 50,
-                              decoration: BoxDecoration(
-                                gradient: LinearGradient(
-                                  colors: [
-                                    AppColors.primary,
-                                    AppColors.primary.withOpacity(0.6),
-                                  ],
-                                ),
-                                borderRadius: BorderRadius.circular(10),
-                              ),
-                              child: Center(
-                                child: Icon(
-                                  Icons.receipt_long_rounded,
-                                  color: Colors.white,
-                                  size: 22,
-                                ),
-                              ),
+                            leading: Builder(
+                              builder: (_) {
+                                final visual = _getExpenseVisual(exp.note);
+
+                                return Container(
+                                  width: 50,
+                                  height: 50,
+                                  decoration: BoxDecoration(
+                                    color: visual["color"].withOpacity(0.15),
+                                    borderRadius: BorderRadius.circular(14),
+                                  ),
+                                  child: Center(
+                                    child: Icon(
+                                      visual["icon"],
+                                      color: visual["color"],
+                                      size: 26,
+                                    ),
+                                  ),
+                                );
+                              },
                             ),
                             title: Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
@@ -887,7 +931,7 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
                         final isTouched = entry.key == touchedIndex;
                         final percentage = (entry.value.value / total) * 100;
 
-                        final radius = isTouched ? 70.0 : 55.0;
+                        final radius = isTouched ? 85.0 : 50.0;
                         final fontSize = isTouched ? 14.0 : 11.0;
 
                         return PieChartSectionData(
@@ -1244,256 +1288,6 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
     );
   }
 
-  // === SETTLE PAYMENT TAB ===
-  Widget _settlePaymentTab(ExpenseService s) {
-    // Calculate debts from current user's perspective
-    final currentUserDebts = _calculateCurrentUserDebts(s);
-
-    // Ensure selectedToUser is valid and not yourself
-    if (selectedToUser.isEmpty ||
-        selectedToUser == currentUser ||
-        !currentUserDebts.containsKey(selectedToUser)) {
-      if (currentUserDebts.isNotEmpty) {
-        selectedToUser = currentUserDebts.keys.first;
-      } else {
-        selectedToUser = '';
-      }
-    }
-
-    return Container(
-      color: AppColors.background,
-      child: SingleChildScrollView(
-        padding: const EdgeInsets.fromLTRB(16, 100, 16, 20),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              'Record Payment',
-              style: Theme.of(
-                context,
-              ).textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.bold),
-            ),
-            const SizedBox(height: 20),
-
-            // === CURRENT USER INDICATOR ===
-            Container(
-              padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.circular(10),
-                border: Border.all(color: Colors.grey.shade300),
-              ),
-              child: Row(
-                children: [
-                  Icon(Icons.person_rounded, color: AppColors.primary),
-                  const SizedBox(width: 8),
-                  Text(
-                    'Logged in as:',
-                    style: TextStyle(
-                      color: AppColors.subtext,
-                      fontWeight: FontWeight.w500,
-                    ),
-                  ),
-                  const SizedBox(width: 4),
-                  DropdownButton<String>(
-                    value: currentUser,
-                    items: s.currentGroupUsers
-                        .map(
-                          (u) => DropdownMenuItem(
-                            value: u.id,
-                            child: Text(
-                              u.name,
-                              style: const TextStyle(
-                                fontWeight: FontWeight.bold,
-                              ),
-                            ),
-                          ),
-                        )
-                        .toList(),
-                    onChanged: (v) {
-                      if (v != null && v != currentUser) {
-                        setState(() {
-                          currentUser = v;
-                          selectedToUser =
-                              ''; // Reset to force selection of valid user
-                        });
-                      }
-                    },
-                    underline: const SizedBox(),
-                  ),
-                ],
-              ),
-            ),
-            const SizedBox(height: 20),
-
-            // === PAY TO ===
-            Text(
-              'You owe to:',
-              style: Theme.of(
-                context,
-              ).textTheme.bodyLarge?.copyWith(fontWeight: FontWeight.w600),
-            ),
-            const SizedBox(height: 10),
-            if (currentUserDebts.isEmpty)
-              Container(
-                width: double.infinity,
-                padding: const EdgeInsets.all(16),
-                decoration: BoxDecoration(
-                  color: Colors.green.shade50,
-                  border: Border.all(color: Colors.green.shade300),
-                  borderRadius: BorderRadius.circular(10),
-                ),
-                child: Text(
-                  '✓ No pending debts!',
-                  style: TextStyle(
-                    color: Colors.green.shade700,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-              )
-            else
-              Container(
-                decoration: BoxDecoration(
-                  border: Border.all(color: Colors.grey.shade300),
-                  borderRadius: BorderRadius.circular(10),
-                ),
-                child: DropdownButtonFormField<String>(
-                  initialValue: currentUserDebts.containsKey(selectedToUser)
-                      ? selectedToUser
-                      : currentUserDebts.keys.first,
-                  items: currentUserDebts.entries.map((e) {
-                    final user = s.currentGroupUsers.firstWhere(
-                      (u) => u.id == e.key,
-                      orElse: () => UserModel(id: e.key, name: e.key),
-                    );
-                    return DropdownMenuItem(
-                      value: e.key,
-                      child: Text(
-                        '${user.name} (₹${e.value.abs().toStringAsFixed(2)})',
-                      ),
-                    );
-                  }).toList(),
-                  onChanged: (v) =>
-                      setState(() => selectedToUser = v ?? selectedToUser),
-                  decoration: const InputDecoration(
-                    border: InputBorder.none,
-                    contentPadding: EdgeInsets.symmetric(
-                      horizontal: 12,
-                      vertical: 12,
-                    ),
-                  ),
-                ),
-              ),
-            const SizedBox(height: 16),
-
-            // === AMOUNT ===
-            if (currentUserDebts.isNotEmpty) ...[
-              _buildTextField(
-                paymentAmountCtrl,
-                'Payment Amount (₹)',
-                Icons.currency_rupee_rounded,
-                TextInputType.number,
-              ),
-              const SizedBox(height: 24),
-              SizedBox(
-                width: double.infinity,
-                child: ElevatedButton.icon(
-                  onPressed: () {
-                    try {
-                      if (currentUser == selectedToUser) {
-                        throw Exception('❌ Cannot pay yourself!');
-                      }
-                      final amount =
-                          double.tryParse(paymentAmountCtrl.text.trim()) ?? 0;
-                      if (amount <= 0) throw Exception('Amount must be > 0');
-                      s.recordPayment(
-                        fromUserId: currentUser,
-                        toUserId: selectedToUser,
-                        amount: amount,
-                      );
-
-                      _playSuccessAnimation();
-                      paymentAmountCtrl.clear();
-                      setState(() => tabIndex = 0);
-                    } catch (e) {
-                      ScaffoldMessenger.of(
-                        context,
-                      ).showSnackBar(SnackBar(content: Text(e.toString())));
-                    }
-                  },
-                  icon: const Icon(Icons.check_circle_rounded),
-                  label: const Text(
-                    'Record Payment',
-                    style: TextStyle(fontWeight: FontWeight.w600, fontSize: 16),
-                  ),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.green.shade700,
-                    foregroundColor: Colors.white,
-                    padding: const EdgeInsets.symmetric(vertical: 16),
-                  ),
-                ),
-              ),
-              const SizedBox(height: 24),
-
-              // === PAYMENT HISTORY ===
-              if (s.payments
-                  .where((p) => p.groupId == s.currentGroupId)
-                  .isNotEmpty) ...[
-                Text(
-                  'Recent Payments',
-                  style: Theme.of(
-                    context,
-                  ).textTheme.bodyLarge?.copyWith(fontWeight: FontWeight.w600),
-                ),
-                const SizedBox(height: 12),
-                ...s.payments
-                    .where((p) => p.groupId == s.currentGroupId)
-                    .take(10)
-                    .map((p) {
-                      final from = s.currentGroupUsers.firstWhere(
-                        (u) => u.id == p.fromUserId,
-                        orElse: () =>
-                            UserModel(id: p.fromUserId, name: p.fromUserId),
-                      );
-                      final to = s.currentGroupUsers.firstWhere(
-                        (u) => u.id == p.toUserId,
-                        orElse: () =>
-                            UserModel(id: p.toUserId, name: p.toUserId),
-                      );
-                      return Card(
-                        margin: const EdgeInsets.only(bottom: 10),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                        child: ListTile(
-                          leading: const Icon(
-                            Icons.check_circle_rounded,
-                            color: AppColors.success,
-                            size: 24,
-                          ),
-                          title: Text(
-                            '${from.name} → ${to.name}',
-                            style: const TextStyle(fontWeight: FontWeight.bold),
-                          ),
-                          trailing: Text(
-                            '₹${p.amount.toStringAsFixed(2)}',
-                            style: TextStyle(
-                              fontWeight: FontWeight.bold,
-                              color: Colors.green.shade700,
-                              fontSize: 15,
-                            ),
-                          ),
-                        ),
-                      );
-                    }),
-              ],
-            ],
-          ],
-        ),
-      ),
-    );
-  }
-
   // === MESSAGES TAB ===
   Widget _messagesTab(ExpenseService s) {
     final groupMessages = s.messages
@@ -1675,17 +1469,10 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
     return Container(
       color: AppColors.background,
       child: SingleChildScrollView(
-        padding: const EdgeInsets.fromLTRB(16, 100, 16, 20),
+        padding: const EdgeInsets.fromLTRB(16, 30, 16, 20),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(
-              'Manage Users',
-              style: Theme.of(
-                context,
-              ).textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.bold),
-            ),
-            const SizedBox(height: 20),
             Container(
               padding: const EdgeInsets.all(16),
               decoration: BoxDecoration(
@@ -1744,7 +1531,8 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
                       icon: const Icon(Icons.person_add_rounded),
                       label: const Text('Add User'),
                       style: ElevatedButton.styleFrom(
-                        backgroundColor: AppColors.primary,
+                        backgroundColor: const Color(0xFF60A5FA), // light blue
+                        foregroundColor: Colors.white,
                       ),
                     ),
                   ),
@@ -1845,15 +1633,47 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
 
       if (note.contains("food") ||
           note.contains("restaurant") ||
-          note.contains("dinner")) {
+          note.contains("dinner") ||
+          note.contains("lunch") ||
+          note.contains("breakfast") ||
+          note.contains("snack") ||
+          note.contains("pizza") ||
+          note.contains("burger") ||
+          note.contains("cafe") ||
+          note.contains("coffee") ||
+          note.contains("tea") ||
+          note.contains("zomato") ||
+          note.contains("swiggy")) {
         categories["food"] = categories["food"]! + share;
       } else if (note.contains("uber") ||
+          note.contains("ola") ||
+          note.contains("taxi") ||
+          note.contains("cab") ||
           note.contains("flight") ||
-          note.contains("travel")) {
+          note.contains("train") ||
+          note.contains("bus") ||
+          note.contains("travel") ||
+          note.contains("fuel") ||
+          note.contains("petrol") ||
+          note.contains("diesel")) {
         categories["travel"] = categories["travel"]! + share;
-      } else if (note.contains("grocery") || note.contains("mart")) {
+      } else if (note.contains("grocery") ||
+          note.contains("mart") ||
+          note.contains("vegetable") ||
+          note.contains("fruits") ||
+          note.contains("supermarket") ||
+          note.contains("milk") ||
+          note.contains("bread") ||
+          note.contains("daily")) {
         categories["grocery"] = categories["grocery"]! + share;
-      } else if (note.contains("movie") || note.contains("netflix")) {
+      } else if (note.contains("movie") ||
+          note.contains("netflix") ||
+          note.contains("spotify") ||
+          note.contains("concert") ||
+          note.contains("game") ||
+          note.contains("party") ||
+          note.contains("club") ||
+          note.contains("entertainment")) {
         categories["entertainment"] = categories["entertainment"]! + share;
       } else {
         categories["others"] = categories["others"]! + share;
@@ -1914,15 +1734,9 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
     return Container(
       padding: const EdgeInsets.all(18),
       decoration: BoxDecoration(
-        gradient: LinearGradient(
-          colors: [
-            AppColors.primary.withOpacity(0.35),
-            AppColors.primary.withOpacity(0.15),
-          ],
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-        ),
+        color: const Color(0xFFF1F5F9), // soft slate background
         borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: const Color(0xFFE2E8F0)),
       ),
       child: Row(
         children: [
@@ -1964,11 +1778,6 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
   }
 
   Widget _buildExpenseDetails(ExpenseService s, ExpenseModel exp) {
-    final payer = s.currentGroupUsers.firstWhere(
-      (u) => u.id == exp.payerId,
-      orElse: () => UserModel(id: exp.payerId, name: exp.payerId),
-    );
-
     Map<String, double> splits = exp.splits ?? {};
 
     if (splits.isEmpty && exp.participants.isNotEmpty) {
@@ -1977,35 +1786,68 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
       splits = {for (var id in exp.participants) id: equalShare};
     }
 
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(14),
+    return AnimatedContainer(
+      duration: const Duration(milliseconds: 250),
+      padding: const EdgeInsets.all(16),
+
       decoration: BoxDecoration(
-        color: AppColors.primary,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: AppColors.primary),
+        /// SOFT SURFACE COLOR
+        color: const Color(0xFFF1F5F9),
+
+        borderRadius: BorderRadius.circular(18),
+
+        /// SUBTLE BORDER
+        border: Border.all(color: const Color(0xFFE2E8F0)),
+
+        /// PREMIUM SHADOW
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.12),
+            blurRadius: 20,
+            offset: const Offset(0, 10),
+          ),
+        ],
       ),
+
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(
-            "Expense: ${exp.note}",
-            style: const TextStyle(fontWeight: FontWeight.bold),
+          /// HEADER
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text(
+                exp.note,
+                style: const TextStyle(
+                  fontSize: 15,
+                  fontWeight: FontWeight.bold,
+                  color: Color(0xFF0F172A),
+                ),
+              ),
+
+              Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 10,
+                  vertical: 4,
+                ),
+
+                decoration: BoxDecoration(
+                  color: const Color(0xFFE0E7FF),
+                  borderRadius: BorderRadius.circular(20),
+                ),
+
+                child: Text(
+                  "₹${exp.total.toStringAsFixed(0)}",
+                  style: const TextStyle(
+                    color: Color(0xFF4338CA),
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ),
+            ],
           ),
 
-          const SizedBox(height: 6),
-
-          Text("Paid by: ${payer.name}"),
-
-          const SizedBox(height: 6),
-
-          Text("Total: ₹${exp.total.toStringAsFixed(2)}"),
-
-          const SizedBox(height: 10),
-
-          const Text("Split:", style: TextStyle(fontWeight: FontWeight.bold)),
-
-          const SizedBox(height: 6),
+          const SizedBox(height: 12),
 
           ...splits.entries.map((entry) {
             final user = s.currentGroupUsers.firstWhere(
@@ -2013,14 +1855,38 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
               orElse: () => UserModel(id: entry.key, name: entry.key),
             );
 
-            if (entry.key == exp.payerId) {
-              return Text(
-                "${user.name} paid ₹${entry.value.toStringAsFixed(2)}",
-              );
-            }
+            final isPayer = entry.key == exp.payerId;
 
-            return Text("${user.name} owes ₹${entry.value.toStringAsFixed(2)}");
-          }),
+            return Padding(
+              padding: const EdgeInsets.symmetric(vertical: 4),
+
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Text(
+                    user.name,
+                    style: const TextStyle(
+                      fontWeight: FontWeight.w500,
+                      color: Color(0xFF334155),
+                    ),
+                  ),
+
+                  Text(
+                    isPayer
+                        ? "paid ₹${entry.value.toStringAsFixed(0)}"
+                        : "owes ₹${entry.value.toStringAsFixed(0)}",
+
+                    style: TextStyle(
+                      fontWeight: FontWeight.bold,
+                      color: isPayer
+                          ? const Color(0xFF16A34A)
+                          : const Color(0xFFEA580C),
+                    ),
+                  ),
+                ],
+              ),
+            );
+          }).toList(),
         ],
       ),
     );
