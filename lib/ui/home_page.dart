@@ -657,10 +657,7 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
                     const SizedBox(height: 12),
                     Text(
                       'No expenses yet',
-                      style: TextStyle(
-                        color: AppColors.subtext,
-                        fontSize: 14,
-                      ),
+                      style: TextStyle(color: AppColors.subtext, fontSize: 14),
                     ),
                   ],
                 ),
@@ -1158,10 +1155,22 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
                       }
 
                       final participants = [...selectedUsers, payer];
-                      final share = total / participants.length;
+                      final count = participants.length;
 
-                      for (final id in participants) {
-                        splits[id] = share;
+                      final baseShare = (total / count);
+                      double remaining = total;
+
+                      for (int i = 0; i < count; i++) {
+                        double share;
+
+                        if (i == count - 1) {
+                          share = remaining;
+                        } else {
+                          share = double.parse(baseShare.toStringAsFixed(2));
+                          remaining -= share;
+                        }
+
+                        splits[participants[i]] = share;
                       }
                     } else {
                       double enteredTotal = 0;
@@ -1430,52 +1439,53 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
               if (s.payments
                   .where((p) => p.groupId == s.currentGroupId)
                   .isNotEmpty) ...[
-  Text(
-    'Recent Payments',
-    style: Theme.of(
-      context,
-    ).textTheme.bodyLarge?.copyWith(fontWeight: FontWeight.w600),
-  ),
-  const SizedBox(height: 12),
-  ...s.payments
+                Text(
+                  'Recent Payments',
+                  style: Theme.of(
+                    context,
+                  ).textTheme.bodyLarge?.copyWith(fontWeight: FontWeight.w600),
+                ),
+                const SizedBox(height: 12),
+                ...s.payments
                     .where((p) => p.groupId == s.currentGroupId)
                     .take(10)
                     .map((p) {
-                  final from = s.currentGroupUsers.firstWhere(
-                    (u) => u.id == p.fromUserId,
-                    orElse: () =>
-                        UserModel(id: p.fromUserId, name: p.fromUserId),
-                  );
-                  final to = s.currentGroupUsers.firstWhere(
-                    (u) => u.id == p.toUserId,
-                    orElse: () => UserModel(id: p.toUserId, name: p.toUserId),
-                  );
-                  return Card(
-                    margin: const EdgeInsets.only(bottom: 10),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    child: ListTile(
-                      leading: const Icon(
-                        Icons.check_circle_rounded,
-                        color: AppColors.success,
-                        size: 24,
-                      ),
-                      title: Text(
-                        '${from.name} → ${to.name}',
-                        style: const TextStyle(fontWeight: FontWeight.bold),
-                      ),
-                      trailing: Text(
-                        '₹${p.amount.toStringAsFixed(2)}',
-                        style: TextStyle(
-                          fontWeight: FontWeight.bold,
-                          color: Colors.green.shade700,
-                          fontSize: 15,
+                      final from = s.currentGroupUsers.firstWhere(
+                        (u) => u.id == p.fromUserId,
+                        orElse: () =>
+                            UserModel(id: p.fromUserId, name: p.fromUserId),
+                      );
+                      final to = s.currentGroupUsers.firstWhere(
+                        (u) => u.id == p.toUserId,
+                        orElse: () =>
+                            UserModel(id: p.toUserId, name: p.toUserId),
+                      );
+                      return Card(
+                        margin: const EdgeInsets.only(bottom: 10),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
                         ),
-                      ),
-                    ),
-                  );
-                }),
+                        child: ListTile(
+                          leading: const Icon(
+                            Icons.check_circle_rounded,
+                            color: AppColors.success,
+                            size: 24,
+                          ),
+                          title: Text(
+                            '${from.name} → ${to.name}',
+                            style: const TextStyle(fontWeight: FontWeight.bold),
+                          ),
+                          trailing: Text(
+                            '₹${p.amount.toStringAsFixed(2)}',
+                            style: TextStyle(
+                              fontWeight: FontWeight.bold,
+                              color: Colors.green.shade700,
+                              fontSize: 15,
+                            ),
+                          ),
+                        ),
+                      );
+                    }),
               ],
             ],
           ],
@@ -1486,6 +1496,9 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
 
   // === MESSAGES TAB ===
   Widget _messagesTab(ExpenseService s) {
+    final groupMessages = s.messages
+        .where((m) => m.groupId == s.currentGroupId)
+        .toList();
     return Container(
       color: AppColors.background,
       child: Column(
@@ -1519,7 +1532,7 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
             ),
           ),
           Expanded(
-            child: s.messages.isEmpty
+            child: groupMessages.isEmpty
                 ? Center(
                     child: Column(
                       mainAxisAlignment: MainAxisAlignment.center,
@@ -1542,9 +1555,9 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
                   )
                 : ListView.builder(
                     reverse: true,
-                    itemCount: s.messages.length,
+                    itemCount: groupMessages.length,
                     itemBuilder: (ctx, idx) {
-                      final msg = s.messages[idx];
+                      final msg = groupMessages[idx];
                       final isCurrentUser = msg.senderId == currentUser;
                       return Padding(
                         padding: const EdgeInsets.symmetric(
@@ -1562,8 +1575,8 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
                             ),
                             decoration: BoxDecoration(
                               color: isCurrentUser
-                                      ? AppColors.primary
-                                    : Colors.grey.shade200,
+                                  ? AppColors.primary
+                                  : Colors.grey.shade200,
                               borderRadius: BorderRadius.circular(14),
                             ),
                             padding: const EdgeInsets.all(12),
@@ -1714,17 +1727,15 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
                     width: double.infinity,
                     child: ElevatedButton.icon(
                       onPressed: () {
-                        if (newUserIdCtrl.text.isNotEmpty &&
-                            newUserNameCtrl.text.isNotEmpty) {
-                          s.addUser(
-                            newUserIdCtrl.text.toUpperCase(),
-                            newUserNameCtrl.text,
-                          );
+                        if (newUserNameCtrl.text.isNotEmpty) {
+                          s.addUserToGroup(newUserNameCtrl.text.trim());
+
                           newUserIdCtrl.clear();
                           newUserNameCtrl.clear();
+
                           ScaffoldMessenger.of(context).showSnackBar(
                             SnackBar(
-                              content: const Text('✓ User added!'),
+                              content: const Text('✓ User added to group!'),
                               backgroundColor: AppColors.primary,
                             ),
                           );
@@ -2088,7 +2099,7 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
                         if (ctrl.text.isNotEmpty) {
                           s.addGroup(
                             ctrl.text,
-                            s.users.map((u) => u.id).toList(),
+                            s.baseUsers.map((u) => u.id).toList(),
                           );
                         }
                         Navigator.pop(context);
@@ -2153,7 +2164,7 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
         ),
       ),
     );
-  }  
+  }
 }
 
 class _AnimatedCheck extends StatefulWidget {

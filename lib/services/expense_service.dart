@@ -5,11 +5,14 @@ class ExpenseService extends ChangeNotifier {
   final bool useFirestore = false;
   final String currentUserId = 'A';
 
-  List<UserModel> users = [
+  List<UserModel> baseUsers = [
     UserModel(id: 'A', name: 'Alice'),
     UserModel(id: 'B', name: 'Bob'),
     UserModel(id: 'C', name: 'Charlie'),
+    UserModel(id:'D', name:'David'),
+    UserModel(id:'E', name:'Emma'),
   ];
+  List<UserModel> groupUsers=[];
 
   List<ExpenseModel> expenses = [];
   List<MessageModel> messages = [];
@@ -23,7 +26,9 @@ class ExpenseService extends ChangeNotifier {
       orElse: () => groups.first,
     );
 
-    return users.where((u) => group.members.contains(u.id)).toList();
+    final allUsers = [...baseUsers, ...groupUsers];
+
+    return allUsers.where((u) => group.members.contains(u.id)).toList();
   }
   
 
@@ -38,7 +43,7 @@ class ExpenseService extends ChangeNotifier {
       GroupModel(
         id: "g1",
         name: "Main Group",
-        members: users.map((u) => u.id).toList(),
+        members: baseUsers.map((u) => u.id).toList(),
       ),
     );
 
@@ -77,52 +82,60 @@ class ExpenseService extends ChangeNotifier {
     ];
     messages = [
       MessageModel(
-        id: 'm1',
-        senderId: 'A',
-        senderName: 'Alice',
-        message: '💰 Paid ₹300.00 for "Dinner"',
-        timestamp: DateTime.now().subtract(const Duration(days: 1)),
-      ),
+  id: 'm1',
+  senderId: 'A',
+  senderName: 'Alice',
+  message: '💰 Paid ₹300.00 for "Dinner"',
+  timestamp: DateTime.now().subtract(const Duration(days: 1)),
+  groupId: currentGroupId,
+)
     ];
     _recalcNet();
   }
 
   /// Add a new user dynamically
-  void addUser(String id, String name) {
-    if (!users.any((u) => u.id == id)) {
-      users.add(UserModel(id: id, name: name));
+  void addUserToGroup(String name) {
+    final id = "U${DateTime.now().millisecondsSinceEpoch}";
 
-      // add user to all groups
-      for (final g in groups) {
-        g.members.add(id);
-      }
+    final newUser = UserModel(id: id, name: name);
 
-      _initializePairwiseForUser(id);
+    groupUsers.add(newUser);
 
-      notifyListeners();
-    }
+    final group = groups.firstWhere((g) => g.id == currentGroupId);
+    group.members.add(id);
+
+    notifyListeners();
   }
 
   /// Remove a user
   void removeUser(String id) {
-    if (id != currentUserId) {
-      users.removeWhere((u) => u.id == id);
-      pairwiseOwes.remove(id);
-      for (final from in pairwiseOwes.values) {
-        from.remove(id);
-      }
-      _recalcNet();
+  if (id != currentUserId) {
+    groupUsers.removeWhere((u) => u.id == id);
+
+    final group = groups.firstWhere((g) => g.id == currentGroupId);
+    group.members.remove(id);
+
+    pairwiseOwes.remove(id);
+
+    for (final from in pairwiseOwes.values) {
+      from.remove(id);
     }
+
+    _recalcNet();
   }
+}
   
 
   void _initializePairwiseForUser(String userId) {
-    pairwiseOwes[userId] = {};
-    for (final user in users) {
-      pairwiseOwes[userId]![user.id] = 0;
-      pairwiseOwes[user.id]?[userId] = 0;
-    }
+  final allUsers = [...baseUsers, ...groupUsers];
+
+  pairwiseOwes[userId] = {};
+
+  for (final user in allUsers) {
+    pairwiseOwes[userId]![user.id] = 0;
+    pairwiseOwes[user.id]?[userId] = 0;
   }
+}
 
   void _recalcNet() {
     // Initialize pairwise owes for all users
@@ -151,7 +164,9 @@ class ExpenseService extends ChangeNotifier {
         });
       } else {
         final count = participants.length;
-        final share = count > 0 ? exp.total / count : 0;
+        final share = count > 0
+            ? double.parse((exp.total / count).toStringAsFixed(2))
+            : 0;
 
         for (final member in participants) {
           if (member == exp.payerId) continue;
@@ -187,48 +202,13 @@ class ExpenseService extends ChangeNotifier {
     return netBalanceFromA.map((k, v) => MapEntry(k, v > 0 ? v : 0));
   }
 
-  void addExpense({
-    required double total,
-    required String payerId,
-    required List<String> participants,
-    required String note,
-    Map<String, double>? splits,
-  }) {
-    if (total <= 0) throw Exception('Amount must be > 0');
-    if (!participants.contains(payerId)) participants.add(payerId);
-    if (participants.length < 2) {
-      throw Exception('Need at least two participants');
-    }
-
-    final newExpense = ExpenseModel(
-      id: DateTime.now().millisecondsSinceEpoch.toString(),
-      groupId: currentGroupId,
-      total: total,
-      payerId: payerId,
-      note: note,
-      participants: participants,
-      splits: splits,
-      createdAt: DateTime.now(),
-    );
-
-    expenses.insert(0, newExpense);
-    _recalcNet();
-
-    // Auto-add message
-    final payer = users.firstWhere((u) => u.id == payerId, orElse: () => UserModel(id: payerId, name: payerId));
-    addMessage(
-      senderId: payerId,
-      senderName: payer.name,
-      message: '💰 Paid ₹${total.toStringAsFixed(2)} for "$note"',
-    );
-  }
+ 
 
   void deleteExpense(String expenseId) {
     expenses.removeWhere((e) => e.id == expenseId);
     _recalcNet();
   }
-  void addExpenseCustom({
-    
+ void addExpenseCustom({
     required double total,
     required String payerId,
     required Map<String, double> splits,
@@ -237,20 +217,22 @@ class ExpenseService extends ChangeNotifier {
     if (!splits.containsKey(payerId)) {
       splits[payerId] = 0;
     }
-    final splitTotal = splits.values.fold(0.0, (sum, amount) => sum + amount);
 
-    if ((splitTotal - total).abs() > 0.01) {
+    final splitTotal = splits.values.fold(0.0, (sum, a) => sum + a);
+
+    if ((splitTotal - total).abs() > 0.05) {
       throw Exception("Split amounts must equal total");
     }
 
-    final id = DateTime.now().millisecondsSinceEpoch.toString();
+    final expenseId = DateTime.now().millisecondsSinceEpoch.toString();
 
-    expenses.add(
+    expenses.insert(
+      0,
       ExpenseModel(
-        id: id,
+        id: expenseId,
         groupId: currentGroupId,
-        payerId: payerId,
         total: total,
+        payerId: payerId,
         participants: splits.keys.toList(),
         splits: splits,
         note: note,
@@ -258,17 +240,46 @@ class ExpenseService extends ChangeNotifier {
       ),
     );
 
+    // 🔥 RECALCULATE BALANCES
     _recalcNet();
+
+    // 🔥 GET PAYER USER
+    final payer = currentGroupUsers.firstWhere(
+      (u) => u.id == payerId,
+      orElse: () => UserModel(id: payerId, name: payerId),
+    );
+
+    // 🔥 ADD CHAT MESSAGE
+    messages.insert(
+      0,
+      MessageModel(
+        id: DateTime.now().millisecondsSinceEpoch.toString(),
+        senderId: payerId,
+        senderName: payer.name,
+        message:
+            '💰 ${payer.name} paid ₹${total.toStringAsFixed(2)} for "$note"',
+        groupId: currentGroupId,
+        timestamp: DateTime.now(),
+      ),
+    );
+
+    notifyListeners();
   }
 
-  void addMessage({required String senderId, required String senderName, required String message}) {
+  void addMessage({
+    required String senderId,
+    required String senderName,
+    required String message,
+  }) {
     final newMessage = MessageModel(
       id: DateTime.now().millisecondsSinceEpoch.toString(),
       senderId: senderId,
       senderName: senderName,
       message: message,
       timestamp: DateTime.now(),
+      groupId: currentGroupId,
     );
+
     messages.insert(0, newMessage);
     notifyListeners();
   }
@@ -290,9 +301,15 @@ class ExpenseService extends ChangeNotifier {
     _recalcNet();
     
     // Auto-add settlement message
-    final fromUser = users.firstWhere((u) => u.id == fromUserId, orElse: () => UserModel(id: fromUserId, name: fromUserId));
-    final toUser = users.firstWhere((u) => u.id == toUserId, orElse: () => UserModel(id: toUserId, name: toUserId));
-    
+    final fromUser = [...baseUsers, ...groupUsers].firstWhere(
+      (u) => u.id == fromUserId,
+      orElse: () => UserModel(id: fromUserId, name: fromUserId),
+    );
+
+    final toUser = [...baseUsers, ...groupUsers].firstWhere(
+      (u) => u.id == toUserId,
+      orElse: () => UserModel(id: toUserId, name: toUserId),
+    );
     addMessage(
       senderId: fromUserId,
       senderName: fromUser.name,

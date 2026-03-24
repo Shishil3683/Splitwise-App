@@ -89,6 +89,7 @@ class MessageModel {
   final String senderName;
   final String message;
   final DateTime timestamp;
+  final String groupId;
 
   MessageModel({
     required this.id,
@@ -96,6 +97,7 @@ class MessageModel {
     required this.senderName,
     required this.message,
     required this.timestamp,
+    required this.groupId,
   });
 
   Map<String, dynamic> toMap() => {
@@ -103,6 +105,7 @@ class MessageModel {
     'senderName': senderName,
     'message': message,
     'timestamp': timestamp,
+    'groupId': groupId,
   };
 
   factory MessageModel.fromMap(String id, Map<String, dynamic> m) =>
@@ -114,6 +117,7 @@ class MessageModel {
         timestamp: m['timestamp'] is Timestamp
             ? (m['timestamp'] as Timestamp).toDate()
             : DateTime.now(),
+        groupId: m['groupId'] as String? ?? '',
       );
 }
 
