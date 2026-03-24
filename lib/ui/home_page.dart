@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 import 'package:splitwise_clone/services/expense_service.dart';
 import 'package:splitwise_clone/models/models.dart';
 import 'package:fl_chart/fl_chart.dart';
+import 'package:splitwise_clone/theme/app_colors.dart';
 
 class HomePage extends StatefulWidget {
   const HomePage({super.key});
@@ -13,6 +14,7 @@ class HomePage extends StatefulWidget {
 class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
   int tabIndex = 0;
   bool showSuccess = false;
+  bool equalSplit = false;
   final amountCtrl = TextEditingController();
   final noteCtrl = TextEditingController();
   final messageCtrl = TextEditingController();
@@ -25,7 +27,7 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
   String payer = 'A';
   String currentUser = 'A';
   String selectedToUser = 'B';
-  
+
   int touchedIndex = -1;
   late AnimationController _animationController;
 
@@ -44,7 +46,7 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
       showSuccess = true;
     });
 
-    Future.delayed(const Duration(milliseconds: 700), () {
+    Future.delayed(const Duration(milliseconds: 900), () {
       if (mounted) {
         setState(() {
           showSuccess = false;
@@ -61,6 +63,13 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
     newUserIdCtrl.dispose();
     newUserNameCtrl.dispose();
     paymentAmountCtrl.dispose();
+
+    for (final controller in splitControllers.values) {
+      controller.dispose();
+    }
+
+    _animationController.dispose();
+
     super.dispose();
   }
 
@@ -71,13 +80,22 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
       children: [
         Scaffold(
           extendBodyBehindAppBar: true,
+          drawer: _groupDrawer(s),
           appBar: AppBar(
-            title: const Text(
-              'Splitwise',
-              style: TextStyle(
+            leading: Builder(
+              builder: (context) => IconButton(
+                icon: const Icon(Icons.menu),
+                onPressed: () {
+                  Scaffold.of(context).openDrawer();
+                },
+              ),
+            ),
+            title: Text(
+              s.groups.firstWhere((g) => g.id == s.currentGroupId).name,
+              style: const TextStyle(
                 fontWeight: FontWeight.w600,
                 fontSize: 20,
-                color: Colors.black,
+                color: AppColors.text,
               ),
             ),
             centerTitle: true,
@@ -87,14 +105,13 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
             actions: [
               Padding(
                 padding: const EdgeInsets.only(right: 12),
-
                 child: DropdownButtonHideUnderline(
                   child: DropdownButton<String>(
                     value: currentUser,
 
                     icon: const Icon(Icons.arrow_drop_down),
 
-                    items: s.users.map((u) {
+                    items: s.currentGroupUsers.map((u) {
                       return DropdownMenuItem(
                         value: u.id,
                         child: Row(
@@ -135,7 +152,7 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
             currentIndex: tabIndex,
             onTap: (index) => setState(() => tabIndex = index),
             type: BottomNavigationBarType.fixed,
-            selectedItemColor: Colors.black,
+            selectedItemColor: AppColors.text,
             unselectedItemColor: Colors.grey,
             backgroundColor: Colors.white,
             elevation: 0,
@@ -161,17 +178,18 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
           floatingActionButton: tabIndex == 0
               ? FloatingActionButton(
                   onPressed: () {
+                    final s = context.read<ExpenseService>();
+
                     Navigator.push(
                       context,
                       MaterialPageRoute(
                         builder: (context) {
-                          final s = context.watch<ExpenseService>();
                           return Scaffold(body: _usersTab(s));
                         },
                       ),
                     );
                   },
-                  backgroundColor: const Color(0xFF4F46E5),
+                  backgroundColor: AppColors.primary,
                   child: const Icon(Icons.group_add_rounded, size: 28),
                 )
               : null,
@@ -193,7 +211,7 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
     String toUserId,
     double amount,
   ) {
-    final toUser = s.users.firstWhere(
+    final toUser = s.currentGroupUsers.firstWhere(
       (u) => u.id == toUserId,
       orElse: () => UserModel(id: toUserId, name: toUserId),
     );
@@ -248,11 +266,28 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
     final totalYouOwe = balanceCards
         .where((e) => e.value < 0)
         .fold<double>(0, (sum, e) => sum + e.value.abs());
-    final totalExpenses = s.expenses
-        .where((e) => e.participants.contains(currentUser))
-        .fold<double>(0, (sum, e) => sum + e.total);
+    final groupExpenses = s.expenses
+        .where((e) => e.groupId == s.currentGroupId)
+        .toList();
+
+    final totalExpenses = groupExpenses.fold<double>(
+      0.0,
+      (sum, e) => sum + e.total,
+    );
+
+    double myExpense = groupExpenses.fold(0.0, (sum, e) {
+      double share = 0;
+
+      if (e.splits != null && e.splits!.containsKey(currentUser)) {
+        share = e.splits![currentUser]!;
+      } else if (e.participants.contains(currentUser)) {
+        share = e.total / e.participants.length;
+      }
+
+      return sum + share;
+    });
     return Container(
-      color: const Color(0xFFF8F8F8),
+      color: AppColors.background,
       child: SingleChildScrollView(
         padding: const EdgeInsets.fromLTRB(16, 100, 16, 20),
         child: Column(
@@ -262,47 +297,126 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
               'Your Dashboard',
               style: Theme.of(context).textTheme.headlineSmall?.copyWith(
                 fontWeight: FontWeight.bold,
-                color: Colors.black,
+                color: AppColors.text,
               ),
             ),
             const SizedBox(height: 16),
 
             // === OVERVIEW STATS ===
-            GridView.count(
-              crossAxisCount: 3,
-              childAspectRatio: 1.1,
-              shrinkWrap: true,
-              physics: const NeverScrollableScrollPhysics(),
-              mainAxisSpacing: 12,
-              crossAxisSpacing: 12,
-              children: [
-                _animatedStatCard(
-                  0,
-                  icon: Icons.trending_up_rounded,
-                  value: '₹${totalExpenses.toStringAsFixed(0)}',
-                  label: 'Total',
-                  color: Colors.blue,
-                ),
-                _animatedStatCard(
-                  1,
-                  icon: Icons.arrow_upward_rounded,
-                  value: '₹${totalOwedToYou.toStringAsFixed(0)}',
-                  label: 'Owed',
-                  color: Colors.green,
-                ),
-                _animatedStatCard(
-                  2,
-                  icon: Icons.arrow_downward_rounded,
-                  value: '₹${totalYouOwe.toStringAsFixed(0)}',
-                  label: 'You Owe',
-                  color: Colors.red,
-                ),
-              ],
+            // === BALANCE CARD ===
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(20),
+              decoration: BoxDecoration(
+                color: AppColors.card,
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(color: AppColors.border),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text(
+                    "My Expense",
+                    style: TextStyle(fontSize: 14, color: AppColors.subtext),
+                  ),
+
+                  const SizedBox(height: 6),
+
+                  Text(
+                    "₹${myExpense.toStringAsFixed(2)}",
+                    style: const TextStyle(
+                      fontSize: 32,
+                      fontWeight: FontWeight.bold,
+                      color: AppColors.text,
+                    ),
+                  ),
+
+                  const SizedBox(height: 16),
+
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Text(
+                            "You will receive",
+                            style: TextStyle(
+                              fontSize: 12,
+                              color: AppColors.subtext,
+                            ),
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            "₹${totalOwedToYou.toStringAsFixed(2)}",
+                            style: const TextStyle(
+                              fontWeight: FontWeight.bold,
+                              color: AppColors.success,
+                              fontSize: 16,
+                            ),
+                          ),
+                        ],
+                      ),
+
+                      Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Text(
+                            "You owe",
+                            style: TextStyle(
+                              fontSize: 12,
+                              color: AppColors.subtext,
+                            ),
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            "₹${totalYouOwe.toStringAsFixed(2)}",
+                            style: const TextStyle(
+                              fontWeight: FontWeight.bold,
+                              color: AppColors.danger,
+                              fontSize: 16,
+                            ),
+                          ),
+                        ],
+                      ),
+
+                      Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Text(
+                            "Total Expenses",
+                            style: TextStyle(
+                              fontSize: 12,
+                              color: AppColors.subtext,
+                            ),
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            "₹${totalExpenses.toStringAsFixed(0)}",
+                            style: const TextStyle(
+                              fontWeight: FontWeight.bold,
+                              color: AppColors.primary,
+                              fontSize: 16,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ],
+              ),
             ),
             const SizedBox(height: 28),
 
+            _buildSpendingPersonality(s),
+
+            const SizedBox(height: 20),
+
             // === PIE CHART WITH LEGEND ===
-            if (s.expenses.isNotEmpty) _buildPieChartWithLegend(s),
+            if (s.expenses
+                .where((e) => e.groupId == s.currentGroupId)
+                .isNotEmpty)
+              _buildPieChartWithLegend(s),
             const SizedBox(height: 24),
 
             // === BALANCES ===
@@ -310,7 +424,7 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
               children: [
                 Icon(
                   Icons.account_balance_wallet_rounded,
-                  color: Colors.black87,
+                  color: AppColors.text,
                   size: 28,
                 ),
                 const SizedBox(width: 10),
@@ -318,7 +432,7 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
                   'Settlement Status',
                   style: Theme.of(context).textTheme.headlineSmall?.copyWith(
                     fontWeight: FontWeight.bold,
-                    color: Colors.black,
+                    color: AppColors.text,
                   ),
                 ),
               ],
@@ -371,7 +485,7 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
             else
               ...balanceCards.map((e) {
                 final isOwed = e.value > 0;
-                final user = s.users.firstWhere(
+                final user = s.currentGroupUsers.firstWhere(
                   (u) => u.id == e.key,
                   orElse: () => UserModel(id: e.key, name: e.key),
                 );
@@ -394,7 +508,7 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
                       decoration: BoxDecoration(
                         color: Colors.white,
                         borderRadius: BorderRadius.circular(16),
-                        border: Border.all(color: const Color(0xFFE5E7EB)),
+                        border: Border.all(color: AppColors.border),
                       ),
                       padding: const EdgeInsets.all(16),
                       child: Row(
@@ -420,7 +534,7 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
                                   Text(
                                     isOwed ? 'owes you' : 'you owe',
                                     style: TextStyle(
-                                      color: Colors.grey.shade600,
+                                      color: AppColors.subtext,
                                       fontSize: 12,
                                       fontWeight: FontWeight.w500,
                                     ),
@@ -470,7 +584,7 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
                               else
                                 OutlinedButton(
                                   onPressed: () {
-                                    final user = s.users.firstWhere(
+                                    final user = s.currentGroupUsers.firstWhere(
                                       (u) => u.id == e.key,
                                       orElse: () =>
                                           UserModel(id: e.key, name: e.key),
@@ -513,19 +627,19 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
             // === RECENT TRANSACTIONS ===
             Row(
               children: [
-                Icon(Icons.receipt_rounded, color: Colors.black87, size: 28),
+                Icon(Icons.receipt_rounded, color: AppColors.text, size: 28),
                 const SizedBox(width: 10),
                 Text(
-                  'Recent (${s.expenses.length})',
+                  'Recent (${s.expenses.where((e) => e.groupId == s.currentGroupId).length})',
                   style: Theme.of(context).textTheme.headlineSmall?.copyWith(
                     fontWeight: FontWeight.bold,
-                    color: Colors.deepPurple.shade700,
+                    color: AppColors.primary,
                   ),
                 ),
               ],
             ),
             const SizedBox(height: 12),
-            if (s.expenses.isEmpty)
+            if (s.expenses.where((e) => e.groupId == s.currentGroupId).isEmpty)
               Container(
                 width: double.infinity,
                 padding: const EdgeInsets.symmetric(vertical: 32),
@@ -544,7 +658,7 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
                     Text(
                       'No expenses yet',
                       style: TextStyle(
-                        color: Colors.grey.shade600,
+                        color: AppColors.subtext,
                         fontSize: 14,
                       ),
                     ),
@@ -553,121 +667,126 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
               )
             else
               ...s.expenses
-                  .where((e) => e.participants.contains(currentUser))
+                  .where(
+                    (e) =>
+                        e.groupId == s.currentGroupId &&
+                        e.participants.contains(currentUser),
+                  )
                   .take(5)
                   .map((exp) {
-                final payer = s.users.firstWhere(
-                  (u) => u.id == exp.payerId,
-                  orElse: () => UserModel(id: exp.payerId, name: exp.payerId),
-                );
-                final participantNames = exp.participants
-                    .map((id) {
-                      final user = s.users.firstWhere(
-                        (u) => u.id == id,
-                        orElse: () => UserModel(id: id, name: id),
-                      );
-                      return user.name;
-                    })
-                    .join(', ');
+                    final payer = s.currentGroupUsers.firstWhere(
+                      (u) => u.id == exp.payerId,
+                      orElse: () =>
+                          UserModel(id: exp.payerId, name: exp.payerId),
+                    );
+                    final participantNames = exp.participants
+                        .map((id) {
+                          final user = s.currentGroupUsers.firstWhere(
+                            (u) => u.id == id,
+                            orElse: () => UserModel(id: id, name: id),
+                          );
+                          return user.name;
+                        })
+                        .join(', ');
 
-                return Padding(
-                  padding: const EdgeInsets.only(bottom: 12),
-                  child: Card(
-                    elevation: 0,
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(16),
-                      side: const BorderSide(color: Color(0xFFE5E7EB)),
-                    ),
-                    child: Container(
-                      decoration: BoxDecoration(
-                        borderRadius: BorderRadius.circular(16),
-                        color: Colors.white,
-                      ),
-                      child: ListTile(
-                        leading: Container(
-                          width: 50,
-                          height: 50,
+                    return Padding(
+                      padding: const EdgeInsets.only(bottom: 12),
+                      child: Card(
+                        elevation: 0,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(16),
+                          side: const BorderSide(color: Color(0xFFE5E7EB)),
+                        ),
+                        child: Container(
                           decoration: BoxDecoration(
-                            gradient: LinearGradient(
-                              colors: [
-                                Colors.deepPurple.shade300,
-                                Colors.purple.shade200,
-                              ],
-                            ),
-                            borderRadius: BorderRadius.circular(10),
+                            borderRadius: BorderRadius.circular(16),
+                            color: Colors.white,
                           ),
-                          child: Center(
-                            child: Icon(
-                              Icons.receipt_long_rounded,
-                              color: Colors.white,
-                              size: 22,
-                            ),
-                          ),
-                        ),
-                        title: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              '₹${exp.total.toStringAsFixed(2)}',
-                              style: const TextStyle(
-                                fontWeight: FontWeight.bold,
-                                fontSize: 16,
-                                color: Colors.deepPurple,
+                          child: ListTile(
+                            leading: Container(
+                              width: 50,
+                              height: 50,
+                              decoration: BoxDecoration(
+                                gradient: LinearGradient(
+                                  colors: [
+                                    AppColors.primary,
+                                    AppColors.primary.withOpacity(0.6),
+                                  ],
+                                ),
+                                borderRadius: BorderRadius.circular(10),
                               ),
-                            ),
-                            const SizedBox(height: 2),
-                            Text(
-                              exp.note,
-                              style: TextStyle(
-                                fontWeight: FontWeight.w600,
-                                fontSize: 12,
-                                color: Colors.grey.shade700,
-                              ),
-                            ),
-                          ],
-                        ),
-                        subtitle: Padding(
-                          padding: const EdgeInsets.only(top: 6),
-                          child: Row(
-                            children: [
-                              Icon(
-                                Icons.person_rounded,
-                                size: 14,
-                                color: Colors.deepPurple.shade600,
-                              ),
-                              const SizedBox(width: 4),
-                              Expanded(
-                                child: Text(
-                                  '${payer.name} paid • Split: $participantNames',
-                                  style: TextStyle(
-                                    fontWeight: FontWeight.w500,
-                                    fontSize: 11,
-                                    color: Colors.grey.shade600,
-                                  ),
-                                  maxLines: 1,
-                                  overflow: TextOverflow.ellipsis,
+                              child: Center(
+                                child: Icon(
+                                  Icons.receipt_long_rounded,
+                                  color: Colors.white,
+                                  size: 22,
                                 ),
                               ),
-                            ],
+                            ),
+                            title: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  '₹${exp.total.toStringAsFixed(2)}',
+                                  style: const TextStyle(
+                                    fontWeight: FontWeight.bold,
+                                    fontSize: 16,
+                                    color: AppColors.primary,
+                                  ),
+                                ),
+                                const SizedBox(height: 2),
+                                Text(
+                                  exp.note,
+                                  style: TextStyle(
+                                    fontWeight: FontWeight.w600,
+                                    fontSize: 12,
+                                    color: Colors.grey.shade700,
+                                  ),
+                                ),
+                              ],
+                            ),
+                            subtitle: Padding(
+                              padding: const EdgeInsets.only(top: 6),
+                              child: Row(
+                                children: [
+                                  Icon(
+                                    Icons.person_rounded,
+                                    size: 14,
+                                    color: AppColors.primary,
+                                  ),
+                                  const SizedBox(width: 4),
+                                  Expanded(
+                                    child: Text(
+                                      '${payer.name} paid • Split: $participantNames',
+                                      style: TextStyle(
+                                        fontWeight: FontWeight.w500,
+                                        fontSize: 11,
+                                        color: AppColors.subtext,
+                                      ),
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                            trailing: IconButton(
+                              icon: const Icon(
+                                Icons.delete_outline_rounded,
+                                color: AppColors.danger,
+                                size: 20,
+                              ),
+                              onPressed: () => s.deleteExpense(exp.id),
+                            ),
+                            contentPadding: const EdgeInsets.symmetric(
+                              horizontal: 14,
+                              vertical: 8,
+                            ),
                           ),
-                        ),
-                        trailing: IconButton(
-                          icon: const Icon(
-                            Icons.delete_outline_rounded,
-                            color: Colors.red,
-                            size: 20,
-                          ),
-                          onPressed: () => s.deleteExpense(exp.id),
-                        ),
-                        contentPadding: const EdgeInsets.symmetric(
-                          horizontal: 14,
-                          vertical: 8,
                         ),
                       ),
-                    ),
-                  ),
-                );
-              }),
+                    );
+                  }),
           ],
         ),
       ),
@@ -677,18 +796,19 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
   // === BUILD PIE CHART WITH LEGEND ===
   Widget _buildPieChartWithLegend(ExpenseService s) {
     final colors = [
-      Colors.blue,
-      Colors.red,
-      Colors.green,
-      Colors.yellow,
-      Colors.purple,
-      Colors.orange,
+      AppColors.primary,
+      AppColors.success,
+      AppColors.warning,
       Colors.pink,
       Colors.teal,
     ];
 
     final chartExpenses = s.expenses
-        .where((e) => e.participants.contains(currentUser))
+        .where(
+          (e) =>
+              e.groupId == s.currentGroupId &&
+              e.participants.contains(currentUser),
+        )
         .take(5)
         .toList();
 
@@ -697,12 +817,13 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
         .toList();
 
     final total = chartData.fold<double>(0, (sum, e) => sum + e.value);
+    if (total == 0) return const SizedBox();
 
     return Container(
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: const Color(0xFFE5E7EB)),
+        border: Border.all(color: AppColors.border),
       ),
       padding: const EdgeInsets.all(18),
       child: Column(
@@ -713,12 +834,12 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
               Container(
                 padding: const EdgeInsets.all(8),
                 decoration: BoxDecoration(
-                  color: Colors.deepPurple.shade100,
+                  color: AppColors.primary.withOpacity(0.15),
                   shape: BoxShape.circle,
                 ),
                 child: Icon(
                   Icons.pie_chart_rounded,
-                  color: Colors.deepPurple.shade700,
+                  color: AppColors.primary,
                   size: 22,
                 ),
               ),
@@ -727,7 +848,7 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
                 'Expense Distribution',
                 style: Theme.of(context).textTheme.bodyLarge?.copyWith(
                   fontWeight: FontWeight.w700,
-                  color: Colors.deepPurple.shade700,
+                  color: AppColors.primary,
                   fontSize: 15,
                 ),
               ),
@@ -843,7 +964,7 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
                                   style: const TextStyle(
                                     fontWeight: FontWeight.w700,
                                     fontSize: 13,
-                                    color: Colors.black87,
+                                    color: AppColors.text,
                                   ),
                                   maxLines: 1,
                                   overflow: TextOverflow.ellipsis,
@@ -879,7 +1000,7 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
 
     return Positioned.fill(
       child: Container(
-        color: Colors.black.withOpacity(0.25),
+        color: AppColors.text.withOpacity(0.25),
         child: Center(
           child: Container(
             width: 120,
@@ -899,7 +1020,7 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
   Widget _addExpenseTab(ExpenseService s) {
     payer = payer.isEmpty ? 'A' : payer;
     return Container(
-      color: const Color(0xFFF8F8F8),
+      color: AppColors.background,
       child: SingleChildScrollView(
         padding: const EdgeInsets.fromLTRB(16, 100, 16, 20),
         child: Column(
@@ -928,21 +1049,39 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
             const SizedBox(height: 14),
             _buildDropdown(
               'Who paid?',
-              s.users,
+              s.currentGroupUsers,
               payer,
               (v) => setState(() => payer = v ?? 'A'),
             ),
             const SizedBox(height: 16),
-            Text(
-              'Split with:',
-              style: Theme.of(
-                context,
-              ).textTheme.bodyLarge?.copyWith(fontWeight: FontWeight.w600),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text(
+                  equalSplit ? "Equal Split" : "Custom Split",
+                  style: const TextStyle(
+                    fontWeight: FontWeight.w600,
+                    fontSize: 16,
+                  ),
+                ),
+
+                Switch(
+                  value: equalSplit,
+                  activeThumbColor: AppColors.primary,
+                  onChanged: (v) {
+                    setState(() {
+                      equalSplit = v;
+                    });
+                  },
+                ),
+              ],
             ),
+            const SizedBox(height: 6),
+            Text('Select participants', style: TextStyle(color: Colors.grey)),
             const SizedBox(height: 10),
             Column(
               children: [
-                for (final u in s.users.where((u) => u.id != payer))
+                for (final u in s.currentGroupUsers.where((u) => u.id != payer))
                   Builder(
                     builder: (context) {
                       if (!splitControllers.containsKey(u.id)) {
@@ -953,6 +1092,19 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
                         padding: const EdgeInsets.only(bottom: 10),
                         child: Row(
                           children: [
+                            Checkbox(
+                              value: selectedUsers.contains(u.id),
+                              onChanged: (v) {
+                                setState(() {
+                                  if (v == true) {
+                                    selectedUsers.add(u.id);
+                                  } else {
+                                    selectedUsers.remove(u.id);
+                                  }
+                                });
+                              },
+                            ),
+
                             CircleAvatar(
                               radius: 16,
                               backgroundImage: NetworkImage(
@@ -971,16 +1123,17 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
                               ),
                             ),
 
-                            SizedBox(
-                              width: 120,
-                              child: TextField(
-                                controller: splitControllers[u.id],
-                                keyboardType: TextInputType.number,
-                                decoration: const InputDecoration(
-                                  hintText: "Amount",
+                            if (!equalSplit)
+                              SizedBox(
+                                width: 120,
+                                child: TextField(
+                                  controller: splitControllers[u.id],
+                                  keyboardType: TextInputType.number,
+                                  decoration: const InputDecoration(
+                                    hintText: "Amount",
+                                  ),
                                 ),
                               ),
-                            ),
                           ],
                         ),
                       );
@@ -998,29 +1151,41 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
                     if (total <= 0) throw Exception('Amount must be > 0');
 
                     final splits = <String, double>{};
-                    double enteredTotal = 0;
 
-                    for (final user in s.users) {
-                      if (user.id == payer) continue;
-
-                      final ctrl = splitControllers[user.id];
-                      if (ctrl == null) continue;
-
-                      final amount = double.tryParse(ctrl.text) ?? 0;
-                      if (amount > 0) {
-                        splits[user.id] = amount;
-                        enteredTotal += amount;
+                    if (equalSplit) {
+                      if (selectedUsers.isEmpty) {
+                        throw Exception("Select at least one user");
                       }
+
+                      final participants = [...selectedUsers, payer];
+                      final share = total / participants.length;
+
+                      for (final id in participants) {
+                        splits[id] = share;
+                      }
+                    } else {
+                      double enteredTotal = 0;
+
+                      for (final id in selectedUsers) {
+                        final ctrl = splitControllers[id];
+                        if (ctrl == null) continue;
+
+                        final amount = double.tryParse(ctrl.text) ?? 0;
+
+                        if (amount > 0) {
+                          splits[id] = amount;
+                          enteredTotal += amount;
+                        }
+                      }
+
+                      final payerShare = total - enteredTotal;
+
+                      if (payerShare < 0) {
+                        throw Exception("Split exceeds total amount");
+                      }
+
+                      splits[payer] = payerShare;
                     }
-
-                    final payerShare = total - enteredTotal;
-
-                    if (payerShare < 0) {
-                      throw Exception("Split exceeds total amount");
-                    }
-
-                    splits[payer] = payerShare;
-
                     s.addExpenseCustom(
                       total: total,
                       payerId: payer,
@@ -1032,6 +1197,7 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
 
                     amountCtrl.clear();
                     noteCtrl.clear();
+                    selectedUsers.clear();
 
                     for (var c in splitControllers.values) {
                       c.clear();
@@ -1042,7 +1208,7 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
                     ScaffoldMessenger.of(context).showSnackBar(
                       SnackBar(
                         content: const Text('✓ Expense added!'),
-                        backgroundColor: Colors.deepPurple.shade700,
+                        backgroundColor: AppColors.primary,
                       ),
                     );
                   } catch (e) {
@@ -1057,7 +1223,7 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
                   style: TextStyle(fontWeight: FontWeight.w600, fontSize: 16),
                 ),
                 style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.deepPurple.shade700,
+                  backgroundColor: AppColors.primary,
                   foregroundColor: Colors.white,
                   padding: const EdgeInsets.symmetric(vertical: 16),
                 ),
@@ -1086,7 +1252,7 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
     }
 
     return Container(
-      color: const Color(0xFFF8F8F8),
+      color: AppColors.background,
       child: SingleChildScrollView(
         padding: const EdgeInsets.fromLTRB(16, 100, 16, 20),
         child: Column(
@@ -1110,19 +1276,19 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
               ),
               child: Row(
                 children: [
-                  Icon(Icons.person_rounded, color: Colors.deepPurple.shade700),
+                  Icon(Icons.person_rounded, color: AppColors.primary),
                   const SizedBox(width: 8),
                   Text(
                     'Logged in as:',
                     style: TextStyle(
-                      color: Colors.grey.shade600,
+                      color: AppColors.subtext,
                       fontWeight: FontWeight.w500,
                     ),
                   ),
                   const SizedBox(width: 4),
                   DropdownButton<String>(
                     value: currentUser,
-                    items: s.users
+                    items: s.currentGroupUsers
                         .map(
                           (u) => DropdownMenuItem(
                             value: u.id,
@@ -1187,7 +1353,7 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
                       ? selectedToUser
                       : currentUserDebts.keys.first,
                   items: currentUserDebts.entries.map((e) {
-                    final user = s.users.firstWhere(
+                    final user = s.currentGroupUsers.firstWhere(
                       (u) => u.id == e.key,
                       orElse: () => UserModel(id: e.key, name: e.key),
                     );
@@ -1261,21 +1427,26 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
               const SizedBox(height: 24),
 
               // === PAYMENT HISTORY ===
-              if (s.payments.isNotEmpty) ...[
-                Text(
-                  'Recent Payments',
-                  style: Theme.of(
-                    context,
-                  ).textTheme.bodyLarge?.copyWith(fontWeight: FontWeight.w600),
-                ),
-                const SizedBox(height: 12),
-                ...s.payments.take(10).map((p) {
-                  final from = s.users.firstWhere(
+              if (s.payments
+                  .where((p) => p.groupId == s.currentGroupId)
+                  .isNotEmpty) ...[
+  Text(
+    'Recent Payments',
+    style: Theme.of(
+      context,
+    ).textTheme.bodyLarge?.copyWith(fontWeight: FontWeight.w600),
+  ),
+  const SizedBox(height: 12),
+  ...s.payments
+                    .where((p) => p.groupId == s.currentGroupId)
+                    .take(10)
+                    .map((p) {
+                  final from = s.currentGroupUsers.firstWhere(
                     (u) => u.id == p.fromUserId,
                     orElse: () =>
                         UserModel(id: p.fromUserId, name: p.fromUserId),
                   );
-                  final to = s.users.firstWhere(
+                  final to = s.currentGroupUsers.firstWhere(
                     (u) => u.id == p.toUserId,
                     orElse: () => UserModel(id: p.toUserId, name: p.toUserId),
                   );
@@ -1287,7 +1458,7 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
                     child: ListTile(
                       leading: const Icon(
                         Icons.check_circle_rounded,
-                        color: Colors.green,
+                        color: AppColors.success,
                         size: 24,
                       ),
                       title: Text(
@@ -1316,7 +1487,7 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
   // === MESSAGES TAB ===
   Widget _messagesTab(ExpenseService s) {
     return Container(
-      color: const Color(0xFFF8F8F8),
+      color: AppColors.background,
       child: Column(
         children: [
           Container(
@@ -1335,7 +1506,7 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
             child: DropdownButton<String>(
               isExpanded: true,
               value: currentUser,
-              items: s.users
+              items: s.currentGroupUsers
                   .map(
                     (u) => DropdownMenuItem(
                       value: u.id,
@@ -1362,7 +1533,7 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
                         Text(
                           'No messages yet',
                           style: TextStyle(
-                            color: Colors.grey.shade600,
+                            color: AppColors.subtext,
                             fontSize: 15,
                           ),
                         ),
@@ -1391,8 +1562,8 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
                             ),
                             decoration: BoxDecoration(
                               color: isCurrentUser
-                                  ? const Color(0xFF4F46E5)
-                                  : Colors.grey.shade200,
+                                      ? AppColors.primary
+                                    : Colors.grey.shade200,
                               borderRadius: BorderRadius.circular(14),
                             ),
                             padding: const EdgeInsets.all(12),
@@ -1462,7 +1633,7 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
                 FloatingActionButton(
                   onPressed: () {
                     if (messageCtrl.text.trim().isNotEmpty) {
-                      final sender = s.users.firstWhere(
+                      final sender = s.currentGroupUsers.firstWhere(
                         (u) => u.id == currentUser,
                         orElse: () =>
                             UserModel(id: currentUser, name: currentUser),
@@ -1475,7 +1646,7 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
                       messageCtrl.clear();
                     }
                   },
-                  backgroundColor: Colors.deepPurple.shade700,
+                  backgroundColor: AppColors.primary,
                   child: const Icon(Icons.send_rounded, color: Colors.white),
                 ),
               ],
@@ -1489,7 +1660,7 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
   // === USERS TAB ===
   Widget _usersTab(ExpenseService s) {
     return Container(
-      color: const Color(0xFFF8F8F8),
+      color: AppColors.background,
       child: SingleChildScrollView(
         padding: const EdgeInsets.fromLTRB(16, 100, 16, 20),
         child: Column(
@@ -1510,7 +1681,7 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
                 border: Border.all(color: Colors.grey.shade300),
                 boxShadow: [
                   BoxShadow(
-                    color: Colors.black.withOpacity(0.05),
+                    color: AppColors.text.withOpacity(0.05),
                     blurRadius: 8,
                   ),
                 ],
@@ -1554,7 +1725,7 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
                           ScaffoldMessenger.of(context).showSnackBar(
                             SnackBar(
                               content: const Text('✓ User added!'),
-                              backgroundColor: Colors.deepPurple.shade700,
+                              backgroundColor: AppColors.primary,
                             ),
                           );
                         }
@@ -1562,7 +1733,7 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
                       icon: const Icon(Icons.person_add_rounded),
                       label: const Text('Add User'),
                       style: ElevatedButton.styleFrom(
-                        backgroundColor: Colors.deepPurple.shade700,
+                        backgroundColor: AppColors.primary,
                       ),
                     ),
                   ),
@@ -1571,13 +1742,13 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
             ),
             const SizedBox(height: 24),
             Text(
-              'Users (${s.users.length})',
+              'Users (${s.currentGroupUsers.length})',
               style: Theme.of(
                 context,
               ).textTheme.bodyLarge?.copyWith(fontWeight: FontWeight.w600),
             ),
             const SizedBox(height: 12),
-            ...s.users.map((user) {
+            ...s.currentGroupUsers.map((user) {
               return Card(
                 margin: const EdgeInsets.only(bottom: 10),
                 shape: RoundedRectangleBorder(
@@ -1601,7 +1772,7 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
                       ? IconButton(
                           icon: const Icon(
                             Icons.delete_rounded,
-                            color: Colors.red,
+                            color: AppColors.danger,
                           ),
                           onPressed: () {
                             s.removeUser(user.id);
@@ -1627,7 +1798,7 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
 
   Map<String, double> _calculateCurrentUserBalances(ExpenseService s) {
     final result = <String, double>{};
-    for (final user in s.users) {
+    for (final user in s.currentGroupUsers) {
       if (user.id == currentUser) continue;
       result[user.id] =
           (s.pairwiseOwes[user.id]?[currentUser] ?? 0) -
@@ -1636,9 +1807,144 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
     return result;
   }
 
+  Widget _buildSpendingPersonality(ExpenseService s) {
+    final userExpenses = s.expenses
+        .where(
+          (e) =>
+              e.groupId == s.currentGroupId &&
+              e.participants.contains(currentUser),
+        )
+        .toList();
+
+    if (userExpenses.isEmpty) return const SizedBox();
+
+    Map<String, double> categories = {
+      "food": 0,
+      "travel": 0,
+      "grocery": 0,
+      "entertainment": 0,
+      "others": 0,
+    };
+
+    for (final exp in userExpenses) {
+      final note = exp.note.toLowerCase();
+
+      final share =
+          exp.splits?[currentUser] ?? (exp.total / exp.participants.length);
+
+      if (note.contains("food") ||
+          note.contains("restaurant") ||
+          note.contains("dinner")) {
+        categories["food"] = categories["food"]! + share;
+      } else if (note.contains("uber") ||
+          note.contains("flight") ||
+          note.contains("travel")) {
+        categories["travel"] = categories["travel"]! + share;
+      } else if (note.contains("grocery") || note.contains("mart")) {
+        categories["grocery"] = categories["grocery"]! + share;
+      } else if (note.contains("movie") || note.contains("netflix")) {
+        categories["entertainment"] = categories["entertainment"]! + share;
+      } else {
+        categories["others"] = categories["others"]! + share;
+      }
+    }
+
+    final total = categories.values.fold(0.0, (a, b) => a + b);
+
+    if (total == 0) return const SizedBox();
+
+    final sorted = categories.entries.toList()
+      ..sort((a, b) => b.value.compareTo(a.value));
+
+    final top = sorted.first;
+
+    final percent = ((top.value / total) * 100).round();
+
+    String title;
+    String emoji;
+    String text;
+
+    switch (top.key) {
+      case "food":
+        title = "The Foodie";
+        emoji = "🍔";
+        text = "$percent% of your spending is on food.";
+        break;
+
+      case "travel":
+        title = "The Traveller";
+        emoji = "✈️";
+        text = "$percent% spent on travel.";
+        break;
+
+      case "grocery":
+        title = "The Home Manager";
+        emoji = "🛒";
+        text = "$percent% spent on groceries.";
+        break;
+
+      case "entertainment":
+        title = "The Fun Lover";
+        emoji = "🎬";
+        text = "$percent% spent on entertainment.";
+        break;
+
+      default:
+        title = "The Explorer";
+        emoji = "💳";
+        text = "$percent% of your spending is miscellaneous.";
+    }
+
+    final user = s.currentGroupUsers.firstWhere(
+      (u) => u.id == currentUser,
+      orElse: () => UserModel(id: currentUser, name: currentUser),
+    );
+
+    return Container(
+      padding: const EdgeInsets.all(18),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          colors: [
+            AppColors.primary.withOpacity(0.35),
+            AppColors.primary.withOpacity(0.15),
+          ],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+        borderRadius: BorderRadius.circular(16),
+      ),
+      child: Row(
+        children: [
+          CircleAvatar(radius: 30, backgroundImage: NetworkImage(user.avatar)),
+
+          const SizedBox(width: 16),
+
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  "${user.name}: $title $emoji",
+                  style: const TextStyle(
+                    fontWeight: FontWeight.bold,
+                    fontSize: 16,
+                  ),
+                ),
+
+                const SizedBox(height: 4),
+
+                Text(text, style: const TextStyle(fontSize: 13)),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   Map<String, double> _calculateCurrentUserDebts(ExpenseService s) {
     final result = <String, double>{};
-    for (final user in s.users) {
+    for (final user in s.currentGroupUsers) {
       if (user.id == currentUser) continue;
       final debt = s.pairwiseOwes[currentUser]?[user.id] ?? 0;
       if (debt > 0.01) result[user.id] = debt;
@@ -1647,7 +1953,7 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
   }
 
   Widget _buildExpenseDetails(ExpenseService s, ExpenseModel exp) {
-    final payer = s.users.firstWhere(
+    final payer = s.currentGroupUsers.firstWhere(
       (u) => u.id == exp.payerId,
       orElse: () => UserModel(id: exp.payerId, name: exp.payerId),
     );
@@ -1664,9 +1970,9 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
       width: double.infinity,
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
-        color: Colors.deepPurple.shade50,
+        color: AppColors.primary,
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: Colors.deepPurple.shade200),
+        border: Border.all(color: AppColors.primary),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -1691,7 +1997,7 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
           const SizedBox(height: 6),
 
           ...splits.entries.map((entry) {
-            final user = s.users.firstWhere(
+            final user = s.currentGroupUsers.firstWhere(
               (u) => u.id == entry.key,
               orElse: () => UserModel(id: entry.key, name: entry.key),
             );
@@ -1709,6 +2015,96 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
     );
   }
 
+  Widget _groupDrawer(ExpenseService s) {
+    return Drawer(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          DrawerHeader(
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                colors: [AppColors.primary, Color(0xFF1D4ED8)],
+              ),
+            ),
+            child: const Align(
+              alignment: Alignment.bottomLeft,
+              child: Text(
+                "Groups",
+                style: TextStyle(
+                  fontSize: 24,
+                  color: Colors.white,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ),
+          ),
+
+          ...s.groups.map((g) {
+            final selected = g.id == s.currentGroupId;
+
+            return ListTile(
+              leading: Icon(
+                Icons.group,
+                color: selected ? AppColors.primary : Colors.grey,
+              ),
+              title: Text(g.name),
+
+              selected: selected,
+
+              selectedTileColor: AppColors.primary.withOpacity(0.08),
+
+              onTap: () {
+                s.switchGroup(g.id);
+                Navigator.pop(context);
+              },
+            );
+          }),
+
+          const Divider(),
+
+          ListTile(
+            leading: const Icon(Icons.add),
+            title: const Text("Create Group"),
+            onTap: () {
+              Navigator.pop(context);
+
+              final ctrl = TextEditingController();
+
+              showDialog(
+                context: context,
+                builder: (_) => AlertDialog(
+                  title: const Text("Create Group"),
+                  content: TextField(
+                    controller: ctrl,
+                    decoration: const InputDecoration(labelText: "Group name"),
+                  ),
+                  actions: [
+                    TextButton(
+                      onPressed: () => Navigator.pop(context),
+                      child: const Text("Cancel"),
+                    ),
+                    ElevatedButton(
+                      onPressed: () {
+                        if (ctrl.text.isNotEmpty) {
+                          s.addGroup(
+                            ctrl.text,
+                            s.users.map((u) => u.id).toList(),
+                          );
+                        }
+                        Navigator.pop(context);
+                      },
+                      child: const Text("Create"),
+                    ),
+                  ],
+                ),
+              );
+            },
+          ),
+        ],
+      ),
+    );
+  }
+
   Widget _buildTextField(
     TextEditingController ctrl,
     String label,
@@ -1720,7 +2116,7 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
       keyboardType: type,
       decoration: InputDecoration(
         labelText: label,
-        prefixIcon: Icon(icon, color: Colors.deepPurple.shade700),
+        prefixIcon: Icon(icon, color: AppColors.primary),
         border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
         filled: true,
         fillColor: Colors.white,
@@ -1757,84 +2153,7 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
         ),
       ),
     );
-  }
-
-  Widget _animatedStatCard(
-    int index, {
-    required IconData icon,
-    required String value,
-    required String label,
-    required Color color,
-  }) {
-    final animationValue = Tween<double>(begin: 0, end: 1).animate(
-      CurvedAnimation(
-        parent: _animationController,
-        curve: Interval(index * 0.1, index * 0.1 + 0.6, curve: Curves.easeOut),
-      ),
-    );
-
-    return ScaleTransition(
-      scale: animationValue,
-      child: FadeTransition(
-        opacity: animationValue,
-        child: _premiumStatCard(
-          icon: icon,
-          value: value,
-          label: label,
-          color: color,
-        ),
-      ),
-    );
-  }
-
-  Widget _premiumStatCard({
-    required IconData icon,
-    required String value,
-    required String label,
-    required Color color,
-  }) {
-    return Container(
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: const Color(0xFFE5E7EB)),
-      ),
-      padding: const EdgeInsets.all(12),
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Container(
-            padding: const EdgeInsets.all(8),
-            decoration: BoxDecoration(
-              color: color.withOpacity(0.3),
-              shape: BoxShape.circle,
-            ),
-            child: Icon(icon, color: color, size: 22),
-          ),
-          const SizedBox(height: 8),
-          Text(
-            value,
-            textAlign: TextAlign.center,
-            style: TextStyle(
-              fontWeight: FontWeight.bold,
-              fontSize: 14,
-              color: color.withOpacity(0.9),
-            ),
-          ),
-          const SizedBox(height: 2),
-          Text(
-            label,
-            textAlign: TextAlign.center,
-            style: TextStyle(
-              fontSize: 10,
-              color: Colors.grey.shade600,
-              fontWeight: FontWeight.w500,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
+  }  
 }
 
 class _AnimatedCheck extends StatefulWidget {

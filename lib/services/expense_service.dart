@@ -14,6 +14,18 @@ class ExpenseService extends ChangeNotifier {
   List<ExpenseModel> expenses = [];
   List<MessageModel> messages = [];
   List<PaymentModel> payments = [];
+  List<GroupModel> groups = [];
+
+  String currentGroupId = "g1";
+  List<UserModel> get currentGroupUsers {
+    final group = groups.firstWhere(
+      (g) => g.id == currentGroupId,
+      orElse: () => groups.first,
+    );
+
+    return users.where((u) => group.members.contains(u.id)).toList();
+  }
+  
 
   // A-perspective balance: positive means user owes A, negative means A owes user
   Map<String, double> netBalanceFromA = {};
@@ -22,13 +34,40 @@ class ExpenseService extends ChangeNotifier {
   Map<String, Map<String, double>> pairwiseOwes = {};
 
   ExpenseService() {
+    groups.add(
+      GroupModel(
+        id: "g1",
+        name: "Main Group",
+        members: users.map((u) => u.id).toList(),
+      ),
+    );
+
     _loadInitialData();
+  }
+  //ADD GROUP
+  void addGroup(String name, List<String> members) {
+    final id = "g${groups.length + 1}";
+
+    groups.add(GroupModel(id: id, name: name, members: members));
+
+    currentGroupId = id;
+
+    _recalcNet(); 
+
+    notifyListeners();
+  }
+
+  void switchGroup(String groupId) {
+    currentGroupId = groupId;
+    _recalcNet();
+    notifyListeners();
   }
 
   void _loadInitialData() {
     expenses = [
-      ExpenseModel(
+      ExpenseModel( 
         id: 'x1',
+        groupId: currentGroupId,
         total: 300,
         payerId: 'A',
         note: 'Dinner',
@@ -52,7 +91,14 @@ class ExpenseService extends ChangeNotifier {
   void addUser(String id, String name) {
     if (!users.any((u) => u.id == id)) {
       users.add(UserModel(id: id, name: name));
+
+      // add user to all groups
+      for (final g in groups) {
+        g.members.add(id);
+      }
+
       _initializePairwiseForUser(id);
+
       notifyListeners();
     }
   }
@@ -68,6 +114,7 @@ class ExpenseService extends ChangeNotifier {
       _recalcNet();
     }
   }
+  
 
   void _initializePairwiseForUser(String userId) {
     pairwiseOwes[userId] = {};
@@ -80,19 +127,19 @@ class ExpenseService extends ChangeNotifier {
   void _recalcNet() {
     // Initialize pairwise owes for all users
     pairwiseOwes = {};
-    for (final user in users) {
+
+    for (final user in currentGroupUsers) {
       pairwiseOwes[user.id] = {};
-      for (final other in users) {
+
+      for (final other in currentGroupUsers) {
         pairwiseOwes[user.id]![other.id] = 0;
       }
     }
 
     // Calculate from expenses
-    for (final exp in expenses) {
+    for (final exp in expenses.where((e) => e.groupId == currentGroupId)) {
       final participants = exp.participants.toSet();
-      if (!participants.contains(currentUserId)) {
-        participants.add(currentUserId);
-      }
+      
 
       // Use custom splits if available
       if (exp.splits != null && exp.splits!.isNotEmpty) {
@@ -104,7 +151,7 @@ class ExpenseService extends ChangeNotifier {
         });
       } else {
         final count = participants.length;
-        final share = exp.total / count;
+        final share = count > 0 ? exp.total / count : 0;
 
         for (final member in participants) {
           if (member == exp.payerId) continue;
@@ -116,14 +163,17 @@ class ExpenseService extends ChangeNotifier {
     }
 
     // Subtract payments from debts
-    for (final payment in payments) {
+    // Subtract payments from debts
+    for (final payment in payments.where((p) => p.groupId == currentGroupId)) {
       final current = pairwiseOwes[payment.fromUserId]?[payment.toUserId] ?? 0;
-      pairwiseOwes[payment.fromUserId]?[payment.toUserId] = (current - payment.amount).clamp(0, double.infinity);
+
+      pairwiseOwes[payment.fromUserId]?[payment.toUserId] =
+          (current - payment.amount).clamp(0, double.infinity);
     }
 
     // Calculate A's net balance with each user
     netBalanceFromA = {};
-    for (final user in users) {
+    for (final user in currentGroupUsers) {
       if (user.id == currentUserId) continue;
       netBalanceFromA[user.id] =
           (pairwiseOwes[user.id]?[currentUserId] ?? 0) -
@@ -152,6 +202,7 @@ class ExpenseService extends ChangeNotifier {
 
     final newExpense = ExpenseModel(
       id: DateTime.now().millisecondsSinceEpoch.toString(),
+      groupId: currentGroupId,
       total: total,
       payerId: payerId,
       note: note,
@@ -177,27 +228,37 @@ class ExpenseService extends ChangeNotifier {
     _recalcNet();
   }
   void addExpenseCustom({
+    
     required double total,
     required String payerId,
     required Map<String, double> splits,
     required String note,
   }) {
+    if (!splits.containsKey(payerId)) {
+      splits[payerId] = 0;
+    }
+    final splitTotal = splits.values.fold(0.0, (sum, amount) => sum + amount);
+
+    if ((splitTotal - total).abs() > 0.01) {
+      throw Exception("Split amounts must equal total");
+    }
+
     final id = DateTime.now().millisecondsSinceEpoch.toString();
 
     expenses.add(
       ExpenseModel(
         id: id,
-        total: total,
+        groupId: currentGroupId,
         payerId: payerId,
+        total: total,
         participants: splits.keys.toList(),
         splits: splits,
         note: note,
+        createdAt: DateTime.now(),
       ),
     );
 
-   
-
-    notifyListeners();
+    _recalcNet();
   }
 
   void addMessage({required String senderId, required String senderName, required String message}) {
@@ -222,6 +283,7 @@ class ExpenseService extends ChangeNotifier {
       amount: amount,
       timestamp: DateTime.now(),
       note: 'Payment',
+      groupId: currentGroupId,
     );
     
     payments.add(newPayment);

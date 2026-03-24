@@ -1,5 +1,7 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 
+export 'group_model.dart';
+
 class UserModel {
   final String id;
   final String name;
@@ -42,6 +44,7 @@ class ExpenseModel {
   final String payerId;
   final List<String> participants;
   final String note;
+  final String groupId;
   final DateTime createdAt;
   final Map<String, double>? splits;
 
@@ -51,6 +54,7 @@ class ExpenseModel {
     required this.payerId,
     required this.participants,
     required this.note,
+    required this.groupId,
     DateTime? createdAt,
     this.splits,
   }) : createdAt = createdAt ?? DateTime.now();
@@ -62,7 +66,7 @@ class ExpenseModel {
       'payerId': payerId,
       'note': note,
       'participants': participants,
-      'createdAt': createdAt,
+      'createdAt': Timestamp.fromDate(createdAt),
       'splits': splits,
     };
   }
@@ -115,6 +119,7 @@ class MessageModel {
 
 class PaymentModel {
   final String id;
+  final String groupId;
   final String fromUserId;
   final String toUserId;
   final double amount;
@@ -123,14 +128,16 @@ class PaymentModel {
 
   PaymentModel({
     required this.id,
+    required this.groupId,
     required this.fromUserId,
     required this.toUserId,
     required this.amount,
     required this.timestamp,
-    this.note = 'Payment',
+    required this.note,
   });
 
   Map<String, dynamic> toMap() => {
+    'groupId': groupId,
     'fromUserId': fromUserId,
     'toUserId': toUserId,
     'amount': amount,
@@ -139,14 +146,15 @@ class PaymentModel {
   };
 
   factory PaymentModel.fromMap(String id, Map<String, dynamic> m) =>
-      PaymentModel(
-        id: id,
-        fromUserId: m['fromUserId'] as String,
-        toUserId: m['toUserId'] as String,
-        amount: (m['amount'] as num).toDouble(),
-        timestamp: m['timestamp'] is Timestamp
-            ? (m['timestamp'] as Timestamp).toDate()
-            : DateTime.now(),
-        note: m['note'] as String? ?? 'Payment',
-      );
+    PaymentModel(
+      id: id,
+      groupId: m['groupId'] as String,
+      fromUserId: m['fromUserId'] as String,
+      toUserId: m['toUserId'] as String,
+      amount: (m['amount'] as num).toDouble(),
+      timestamp: m['timestamp'] is Timestamp
+          ? (m['timestamp'] as Timestamp).toDate()
+          : DateTime.now(),
+      note: m['note'] as String? ?? 'Payment',
+    );
 }
