@@ -28,6 +28,17 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
   String currentUser = 'A';
   String selectedToUser = 'B';
 
+  // IMPROVEMENT 5: category filter for expenses
+  static const _categories = [
+    'All',
+    'Food',
+    'Travel',
+    'Grocery',
+    'Fun',
+    'Others',
+  ];
+  String _selectedCategory = _categories[0];
+
   int touchedIndex = -1;
   late AnimationController _animationController;
 
@@ -42,16 +53,9 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
   }
 
   void _playSuccessAnimation() {
-    setState(() {
-      showSuccess = true;
-    });
-
+    setState(() => showSuccess = true);
     Future.delayed(const Duration(milliseconds: 900), () {
-      if (mounted) {
-        setState(() {
-          showSuccess = false;
-        });
-      }
+      if (mounted) setState(() => showSuccess = false);
     });
   }
 
@@ -63,14 +67,93 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
     newUserIdCtrl.dispose();
     newUserNameCtrl.dispose();
     paymentAmountCtrl.dispose();
-
-    for (final controller in splitControllers.values) {
-      controller.dispose();
-    }
-
+    for (final c in splitControllers.values) c.dispose();
     _animationController.dispose();
-
     super.dispose();
+  }
+
+  // ─── IMPROVEMENT 6: Category detection ─────────────────────────────────────
+  String _getCategoryForNote(String? note) {
+    // Guard against both Dart null AND JS undefined (DDC web quirk)
+    final n = (note == null ? '' : note.toString()).toLowerCase();
+    if (n.contains("food") ||
+        n.contains("lunch") ||
+        n.contains("dinner") ||
+        n.contains("pizza") ||
+        n.contains("burger") ||
+        n.contains("restaurant") ||
+        n.contains("coffee") ||
+        n.contains("tea") ||
+        n.contains("cafe") ||
+        n.contains("swiggy") ||
+        n.contains("zomato") ||
+        n.contains("breakfast") ||
+        n.contains("snack"))
+      return 'Food';
+    if (n.contains("uber") ||
+        n.contains("cab") ||
+        n.contains("taxi") ||
+        n.contains("travel") ||
+        n.contains("petrol") ||
+        n.contains("fuel") ||
+        n.contains("flight") ||
+        n.contains("train") ||
+        n.contains("bus") ||
+        n.contains("ola") ||
+        n.contains("diesel"))
+      return 'Travel';
+    if (n.contains("grocery") ||
+        n.contains("vegetable") ||
+        n.contains("mart") ||
+        n.contains("supermarket") ||
+        n.contains("milk") ||
+        n.contains("bread") ||
+        n.contains("fruits"))
+      return 'Grocery';
+    if (n.contains("movie") ||
+        n.contains("netflix") ||
+        n.contains("concert") ||
+        n.contains("party") ||
+        n.contains("club") ||
+        n.contains("spotify") ||
+        n.contains("game"))
+      return 'Fun';
+    return 'Others';
+  }
+
+  Map<String, dynamic> _getExpenseVisual(String? note) {
+    switch (_getCategoryForNote(note)) {
+      case 'Food':
+        return {
+          "icon": Icons.restaurant,
+          "color": Colors.orange,
+          "bg": const Color(0xFFFFF3E0),
+        };
+      case 'Travel':
+        return {
+          "icon": Icons.directions_car,
+          "color": Colors.blue,
+          "bg": const Color(0xFFE3F2FD),
+        };
+      case 'Grocery':
+        return {
+          "icon": Icons.shopping_cart,
+          "color": Colors.green,
+          "bg": const Color(0xFFE8F5E9),
+        };
+      case 'Fun':
+        return {
+          "icon": Icons.movie,
+          "color": Colors.purple,
+          "bg": const Color(0xFFF3E5F5),
+        };
+      default:
+        return {
+          "icon": Icons.widgets,
+          "color": Colors.grey,
+          "bg": const Color(0xFFF5F5F5),
+        };
+    }
   }
 
   @override
@@ -81,118 +164,12 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
         Scaffold(
           extendBodyBehindAppBar: true,
           drawer: _groupDrawer(s),
-          appBar: AppBar(
-            leading: Builder(
-              builder: (context) => IconButton(
-                icon: const Icon(Icons.menu),
-                onPressed: () {
-                  Scaffold.of(context).openDrawer();
-                },
-              ),
-            ),
-            title: Text(
-              s.groups.firstWhere((g) => g.id == s.currentGroupId).name,
-              style: const TextStyle(
-                fontWeight: FontWeight.w600,
-                fontSize: 20,
-                color: AppColors.text,
-              ),
-            ),
-            centerTitle: true,
-            backgroundColor: Colors.white,
-            elevation: 0,
-
-            actions: [
-              Padding(
-                padding: const EdgeInsets.only(right: 12),
-                child: DropdownButtonHideUnderline(
-                  child: DropdownButton<String>(
-                    value: currentUser,
-
-                    icon: const Icon(Icons.arrow_drop_down),
-
-                    items: s.currentGroupUsers.map((u) {
-                      return DropdownMenuItem(
-                        value: u.id,
-                        child: Row(
-                          children: [
-                            CircleAvatar(
-                              radius: 12,
-                              backgroundImage: NetworkImage(
-                                "https://api.dicebear.com/7.x/personas/png?seed=${u.name}",
-                              ),
-                            ),
-
-                            const SizedBox(width: 8),
-
-                            Text(
-                              u.name,
-                              style: const TextStyle(
-                                fontWeight: FontWeight.w600,
-                              ),
-                            ),
-                          ],
-                        ),
-                      );
-                    }).toList(),
-
-                    onChanged: (v) {
-                      if (v != null) {
-                        setState(() {
-                          currentUser = v;
-                        });
-                      }
-                    },
-                  ),
-                ),
-              ),
-            ],
-          ),
-          bottomNavigationBar: BottomNavigationBar(
-            currentIndex: tabIndex,
-            onTap: (index) => setState(() => tabIndex = index),
-            type: BottomNavigationBarType.fixed,
-            items: const [
-              BottomNavigationBarItem(
-                icon: Icon(Icons.dashboard_rounded),
-                label: 'Dashboard',
-              ),
-              BottomNavigationBarItem(
-                icon: Icon(Icons.add_circle_rounded),
-                label: 'Add',
-              ),
-              BottomNavigationBarItem(
-                icon: Icon(Icons.message_rounded),
-                label: 'Chat',
-              ),
-            ],
-          ),
-          floatingActionButton: tabIndex == 0
-              ? FloatingActionButton(
-                  onPressed: () {
-                    final s = context.read<ExpenseService>();
-
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (context) {
-                          return Scaffold(
-                            appBar: AppBar(
-                              title: const Text("Manage Users"),
-                              backgroundColor: Colors.white,
-                              foregroundColor: Colors.black,
-                              elevation: 0,
-                            ),
-                            body: _usersTab(s),
-                          );
-                        },
-                      ),
-                    );
-                  },
-                  backgroundColor: const Color(0xFF34D399),
-                  child: const Icon(Icons.group_add_rounded, size: 28),
-                )
-              : null,
+          // ─── IMPROVEMENT 1: Refined AppBar ──────────────────────────────
+          appBar: _buildAppBar(s),
+          // ─── IMPROVEMENT 6: Persistent centered FAB (no tab-switch) ────
+          bottomNavigationBar: _buildBottomNav(),
+          floatingActionButton: _buildFAB(s),
+          floatingActionButtonLocation: FloatingActionButtonLocation.endFloat,
           body: [
             _dashboardTab(s),
             _addExpenseTab(s),
@@ -202,6 +179,239 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
         _successOverlay(),
       ],
     );
+  }
+
+  // ─── IMPROVEMENT 1: Cleaner AppBar ─────────────────────────────────────────
+  PreferredSizeWidget _buildAppBar(ExpenseService s) {
+    final group = s.groups.firstWhere((g) => g.id == s.currentGroupId);
+    final user = s.currentGroupUsers.firstWhere(
+      (u) => u.id == currentUser,
+      orElse: () => UserModel(id: currentUser, name: currentUser),
+    );
+
+    return AppBar(
+      leading: Builder(
+        builder: (context) => IconButton(
+          icon: const Icon(Icons.menu_rounded),
+          onPressed: () => Scaffold.of(context).openDrawer(),
+        ),
+      ),
+      title: Column(
+        crossAxisAlignment: CrossAxisAlignment.center,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Text(
+            group.name,
+            style: const TextStyle(
+              fontWeight: FontWeight.w700,
+              fontSize: 17,
+              color: AppColors.text,
+            ),
+          ),
+          Text(
+            '${s.currentGroupUsers.length} members',
+            style: TextStyle(
+              fontSize: 11,
+              color: AppColors.subtext,
+              fontWeight: FontWeight.w400,
+            ),
+          ),
+        ],
+      ),
+      centerTitle: true,
+      backgroundColor: Colors.white,
+      elevation: 0,
+      // ─── User pill (IMPROVEMENT 1) ───────────────────────────────────
+      actions: [
+        Padding(
+          padding: const EdgeInsets.only(right: 10),
+          child: GestureDetector(
+            onTap: () => _showUserSwitcher(s),
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+              decoration: BoxDecoration(
+                color: AppColors.primary.withOpacity(0.08),
+                borderRadius: BorderRadius.circular(20),
+                border: Border.all(color: AppColors.primary.withOpacity(0.2)),
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  CircleAvatar(
+                    radius: 10,
+                    backgroundImage: NetworkImage(
+                      "https://api.dicebear.com/7.x/personas/png?seed=${user.name}",
+                    ),
+                  ),
+                  const SizedBox(width: 6),
+                  Text(
+                    user.name,
+                    style: TextStyle(
+                      fontWeight: FontWeight.w600,
+                      fontSize: 12,
+                      color: AppColors.primary,
+                    ),
+                  ),
+                  const SizedBox(width: 2),
+                  Icon(
+                    Icons.expand_more_rounded,
+                    size: 14,
+                    color: AppColors.primary,
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  void _showUserSwitcher(ExpenseService s) {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.white,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (ctx) => Padding(
+        padding: const EdgeInsets.symmetric(vertical: 20, horizontal: 16),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'Switch user',
+              style: TextStyle(
+                fontWeight: FontWeight.w700,
+                fontSize: 16,
+                color: AppColors.text,
+              ),
+            ),
+            const SizedBox(height: 14),
+            ...s.currentGroupUsers.map(
+              (u) => ListTile(
+                leading: CircleAvatar(
+                  backgroundImage: NetworkImage(
+                    "https://api.dicebear.com/7.x/personas/png?seed=${u.name}",
+                  ),
+                ),
+                title: Text(
+                  u.name,
+                  style: const TextStyle(fontWeight: FontWeight.w600),
+                ),
+                trailing: currentUser == u.id
+                    ? Icon(Icons.check_circle_rounded, color: AppColors.primary)
+                    : null,
+                onTap: () {
+                  setState(() => currentUser = u.id);
+                  Navigator.pop(ctx);
+                },
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  // ─── IMPROVEMENT 6: Persistent bottom nav with docked FAB slot ────────────
+  Widget _buildBottomNav() {
+    return BottomAppBar(
+      color: Colors.white,
+      elevation: 8,
+      child: SizedBox(
+        height: 60,
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.spaceAround,
+          children: [
+            _navItem(
+              0,
+              Icons.dashboard_rounded,
+              Icons.dashboard_outlined,
+              'Dashboard',
+            ),
+            _navItem(
+              1,
+              Icons.add_circle_rounded,
+              Icons.add_circle_outline_rounded,
+              'Add',
+            ),
+            _navItem(2, Icons.message_rounded, Icons.message_outlined, 'Chat'),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _navItem(
+    int index,
+    IconData activeIcon,
+    IconData inactiveIcon,
+    String label,
+  ) {
+    final isActive = tabIndex == index;
+    return GestureDetector(
+      onTap: () => setState(() => tabIndex = index),
+      behavior: HitTestBehavior.opaque,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 20),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            AnimatedSwitcher(
+              duration: const Duration(milliseconds: 200),
+              child: Icon(
+                isActive ? activeIcon : inactiveIcon,
+                key: ValueKey(isActive),
+                color: isActive ? AppColors.primary : AppColors.subtext,
+                size: 22,
+              ),
+            ),
+            const SizedBox(height: 2),
+            Text(
+              label,
+              style: TextStyle(
+                fontSize: 10,
+                fontWeight: isActive ? FontWeight.w600 : FontWeight.w400,
+                color: isActive ? AppColors.primary : AppColors.subtext,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  // ─── IMPROVEMENT 6: Centered persistent FAB ───────────────────────────────
+  Widget _buildFAB(ExpenseService s) {
+    // Dashboard → Add User
+    if (tabIndex == 0) {
+      return FloatingActionButton(
+        heroTag: 'add_user',
+        onPressed: () {
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (context) => Scaffold(
+                appBar: AppBar(
+                  title: const Text("Manage Users"),
+                  backgroundColor: Colors.white,
+                  foregroundColor: Colors.black,
+                  elevation: 0,
+                ),
+                body: _usersTab(s),
+              ),
+            ),
+          );
+        },
+        backgroundColor: AppColors.primary,
+        child: const Icon(Icons.person_add_rounded, color: Colors.white),
+      );
+    }
+
+    // Other tabs → No FAB
+    return const SizedBox.shrink();
   }
 
   void _showQuickSettleDialog(
@@ -214,9 +424,7 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
       (u) => u.id == toUserId,
       orElse: () => UserModel(id: toUserId, name: toUserId),
     );
-
     final ctrl = TextEditingController(text: amount.toStringAsFixed(2));
-
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
@@ -234,13 +442,11 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
           ElevatedButton(
             onPressed: () {
               final amt = double.tryParse(ctrl.text) ?? 0;
-
               s.recordPayment(
                 fromUserId: currentUser,
                 toUserId: toUserId,
                 amount: amt,
               );
-
               Navigator.pop(ctx);
               _playSuccessAnimation();
             },
@@ -251,53 +457,8 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
     );
   }
 
-  Map<String, dynamic> _getExpenseVisual(String note) {
-    final n = note.toLowerCase();
-
-    if (n.contains("food") ||
-        n.contains("lunch") ||
-        n.contains("dinner") ||
-        n.contains("pizza") ||
-        n.contains("burger") ||
-        n.contains("restaurant")) {
-      return {"icon": Icons.restaurant, "color": Colors.orange};
-    }
-
-    if (n.contains("coffee") || n.contains("tea")) {
-      return {"icon": Icons.local_cafe, "color": Colors.brown};
-    }
-
-    if (n.contains("uber") ||
-        n.contains("cab") ||
-        n.contains("taxi") ||
-        n.contains("travel")) {
-      return {"icon": Icons.directions_car, "color": Colors.blue};
-    }
-
-    if (n.contains("petrol") || n.contains("fuel")) {
-      return {"icon": Icons.local_gas_station, "color": Colors.redAccent};
-    }
-
-    if (n.contains("grocery") ||
-        n.contains("vegetable") ||
-        n.contains("mart")) {
-      return {"icon": Icons.shopping_cart, "color": Colors.green};
-    }
-
-    if (n.contains("movie") || n.contains("netflix") || n.contains("concert")) {
-      return {"icon": Icons.movie, "color": Colors.purple};
-    }
-
-    if (n.contains("party") || n.contains("club")) {
-      return {"icon": Icons.celebration, "color": Colors.pink};
-    }
-
-    return {"icon": Icons.widgets, "color": Colors.grey};
-  }
-
-  // === DASHBOARD TAB ===
+  // ─── DASHBOARD TAB ─────────────────────────────────────────────────────────
   Widget _dashboardTab(ExpenseService s) {
-    // Calculate balances from current user's perspective
     final currentUserBalances = _calculateCurrentUserBalances(s);
     final balanceCards = currentUserBalances.entries
         .where((e) => e.value.abs() > 0.005)
@@ -312,27 +473,24 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
     final groupExpenses = s.expenses
         .where((e) => e.groupId == s.currentGroupId)
         .toList();
-
     final totalExpenses = groupExpenses.fold<double>(
       0.0,
       (sum, e) => sum + e.total,
     );
-
     double myExpense = groupExpenses.fold(0.0, (sum, e) {
       double share = 0;
-
       if (e.splits != null && e.splits!.containsKey(currentUser)) {
         share = e.splits![currentUser]!;
       } else if (e.participants.contains(currentUser)) {
         share = e.total / e.participants.length;
       }
-
       return sum + share;
     });
+
     return Container(
       color: AppColors.background,
       child: SingleChildScrollView(
-        padding: const EdgeInsets.fromLTRB(16, 80, 16, 20),
+        padding: const EdgeInsets.fromLTRB(16, 80, 16, 90),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -345,496 +503,868 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
             ),
             const SizedBox(height: 16),
 
-            // === OVERVIEW STATS ===
-            // === BALANCE CARD ===
-            Container(
-              width: double.infinity,
-              padding: const EdgeInsets.all(20),
-              decoration: BoxDecoration(
-                color: AppColors.card,
-                borderRadius: BorderRadius.circular(16),
-                border: Border.all(color: AppColors.border),
-              ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const Text(
-                    "My Expense",
-                    style: TextStyle(fontSize: 14, color: AppColors.subtext),
-                  ),
-
-                  const SizedBox(height: 6),
-
-                  Text(
-                    "₹${myExpense.toStringAsFixed(2)}",
-                    style: const TextStyle(
-                      fontSize: 32,
-                      fontWeight: FontWeight.bold,
-                      color: AppColors.text,
-                    ),
-                  ),
-
-                  const SizedBox(height: 16),
-
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          const Text(
-                            "You will receive",
-                            style: TextStyle(
-                              fontSize: 12,
-                              color: AppColors.subtext,
-                            ),
-                          ),
-                          const SizedBox(height: 4),
-                          Text(
-                            "₹${totalOwedToYou.toStringAsFixed(2)}",
-                            style: const TextStyle(
-                              fontWeight: FontWeight.bold,
-                              color: AppColors.success,
-                              fontSize: 16,
-                            ),
-                          ),
-                        ],
-                      ),
-
-                      Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          const Text(
-                            "You owe",
-                            style: TextStyle(
-                              fontSize: 12,
-                              color: AppColors.subtext,
-                            ),
-                          ),
-                          const SizedBox(height: 4),
-                          Text(
-                            "₹${totalYouOwe.toStringAsFixed(2)}",
-                            style: const TextStyle(
-                              fontWeight: FontWeight.bold,
-                              color: AppColors.danger,
-                              fontSize: 16,
-                            ),
-                          ),
-                        ],
-                      ),
-
-                      Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          const Text(
-                            "Total Expenses",
-                            style: TextStyle(
-                              fontSize: 12,
-                              color: AppColors.subtext,
-                            ),
-                          ),
-                          const SizedBox(height: 4),
-                          Text(
-                            "₹${totalExpenses.toStringAsFixed(0)}",
-                            style: const TextStyle(
-                              fontWeight: FontWeight.bold,
-                              color: AppColors.primary,
-                              fontSize: 16,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ],
-                  ),
-                ],
-              ),
+            // ─── IMPROVEMENT 2: 2×2 grid stats ────────────────────────
+            _buildStatsGrid(
+              myExpense,
+              totalYouOwe,
+              totalOwedToYou,
+              totalExpenses,
             ),
-            const SizedBox(height: 28),
-
-            _buildSpendingPersonality(s),
-
             const SizedBox(height: 20),
 
-            // === PIE CHART WITH LEGEND ===
+            // ─── IMPROVEMENT 3: Spending personality bar ───────────────
+            _buildSpendingPersonality(s),
+            const SizedBox(height: 20),
+
             if (s.expenses
                 .where((e) => e.groupId == s.currentGroupId)
                 .isNotEmpty)
               _buildPieChartWithLegend(s),
             const SizedBox(height: 24),
 
-            // === BALANCES ===
+            // ─── Settlement status ─────────────────────────────────────
             Row(
               children: [
                 Icon(
                   Icons.account_balance_wallet_rounded,
                   color: AppColors.text,
-                  size: 28,
+                  size: 26,
                 ),
-                const SizedBox(width: 10),
+                const SizedBox(width: 8),
                 Text(
                   'Settlement Status',
-                  style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
                     fontWeight: FontWeight.bold,
                     color: AppColors.text,
                   ),
                 ),
               ],
             ),
-            const SizedBox(height: 14),
+            const SizedBox(height: 12),
+
+            // ─── IMPROVEMENT 4: Compact settlement card ────────────────
             if (balanceCards.isEmpty)
-              Container(
-                width: double.infinity,
-                padding: const EdgeInsets.symmetric(
-                  vertical: 32,
-                  horizontal: 24,
-                ),
-                decoration: BoxDecoration(
-                  gradient: LinearGradient(
-                    colors: [Colors.green.shade50, Colors.teal.shade50],
-                    begin: Alignment.topLeft,
-                    end: Alignment.bottomRight,
-                  ),
-                  borderRadius: BorderRadius.circular(14),
-                  border: Border.all(color: Colors.green.shade300, width: 2),
-                ),
-                child: Column(
-                  children: [
-                    Icon(
-                      Icons.check_circle_rounded,
-                      size: 64,
-                      color: Colors.green.shade600,
-                    ),
-                    const SizedBox(height: 16),
-                    Text(
-                      'All Settled Up! 🎉',
-                      textAlign: TextAlign.center,
-                      style: TextStyle(
-                        color: Colors.green.shade700,
-                        fontWeight: FontWeight.bold,
-                        fontSize: 18,
-                      ),
-                    ),
-                    const SizedBox(height: 8),
-                    Text(
-                      'No pending balances',
-                      style: TextStyle(
-                        color: Colors.green.shade600,
-                        fontSize: 13,
-                      ),
-                    ),
-                  ],
-                ),
-              )
+              _buildAllSettledCard()
             else
-              ...balanceCards.map((e) {
-                final isOwed = e.value > 0;
-                final user = s.currentGroupUsers.firstWhere(
-                  (u) => u.id == e.key,
-                  orElse: () => UserModel(id: e.key, name: e.key),
-                );
+              _buildSettlementCard(s, balanceCards),
 
-                return Padding(
-                  padding: const EdgeInsets.only(bottom: 12),
-                  child: GestureDetector(
-                    onTap: isOwed
-                        ? null
-                        : () {
-                            // Quick settle action
-                            _showQuickSettleDialog(
-                              context,
-                              s,
-                              e.key,
-                              e.value.abs(),
-                            );
-                          },
-                    child: Container(
-                      decoration: BoxDecoration(
-                        color: Colors.white,
-                        borderRadius: BorderRadius.circular(16),
-                        border: Border.all(color: AppColors.border),
-                      ),
-                      padding: const EdgeInsets.all(16),
-                      child: Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: [
-                          Row(
-                            children: [
-                              CircleAvatar(
-                                radius: 28,
-                                backgroundImage: NetworkImage(user.avatar),
-                              ),
-                              const SizedBox(width: 14),
-                              Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Text(
-                                    user.name,
-                                    style: const TextStyle(
-                                      fontWeight: FontWeight.bold,
-                                      fontSize: 16,
-                                    ),
-                                  ),
-                                  Text(
-                                    isOwed ? 'owes you' : 'you owe',
-                                    style: TextStyle(
-                                      color: AppColors.subtext,
-                                      fontSize: 12,
-                                      fontWeight: FontWeight.w500,
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ],
-                          ),
-                          Column(
-                            crossAxisAlignment: CrossAxisAlignment.end,
-                            children: [
-                              Text(
-                                '₹${e.value.abs().toStringAsFixed(2)}',
-                                style: TextStyle(
-                                  fontSize: 18,
-                                  fontWeight: FontWeight.bold,
-                                  color: isOwed
-                                      ? Colors.green.shade700
-                                      : Colors.red.shade700,
-                                ),
-                              ),
-
-                              const SizedBox(height: 6),
-
-                              if (!isOwed)
-                                ElevatedButton(
-                                  onPressed: () {
-                                    _showQuickSettleDialog(
-                                      context,
-                                      s,
-                                      e.key,
-                                      e.value.abs(),
-                                    );
-                                  },
-                                  style: ElevatedButton.styleFrom(
-                                    backgroundColor: Colors.green.shade600,
-                                    padding: const EdgeInsets.symmetric(
-                                      horizontal: 12,
-                                      vertical: 6,
-                                    ),
-                                  ),
-                                  child: const Text(
-                                    "Pay",
-                                    style: TextStyle(fontSize: 12),
-                                  ),
-                                )
-                              else
-                                OutlinedButton(
-                                  onPressed: () {
-                                    final user = s.currentGroupUsers.firstWhere(
-                                      (u) => u.id == e.key,
-                                      orElse: () =>
-                                          UserModel(id: e.key, name: e.key),
-                                    );
-
-                                    s.addMessage(
-                                      senderId: currentUser,
-                                      senderName: "Reminder",
-                                      message:
-                                          "🔔 Reminder: ${user.name}, please pay ₹${e.value.toStringAsFixed(2)}",
-                                    );
-
-                                    ScaffoldMessenger.of(context).showSnackBar(
-                                      const SnackBar(
-                                        content: Text("Reminder sent in chat"),
-                                      ),
-                                    );
-                                  },
-                                  style: OutlinedButton.styleFrom(
-                                    padding: const EdgeInsets.symmetric(
-                                      horizontal: 12,
-                                      vertical: 6,
-                                    ),
-                                  ),
-                                  child: const Text(
-                                    "Remind",
-                                    style: TextStyle(fontSize: 12),
-                                  ),
-                                ),
-                            ],
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-                );
-              }),
             const SizedBox(height: 24),
 
-            // === RECENT TRANSACTIONS ===
-            Row(
-              children: [
-                Icon(Icons.receipt_rounded, color: AppColors.text, size: 28),
-                const SizedBox(width: 10),
-                Text(
-                  'Recent (${s.expenses.where((e) => e.groupId == s.currentGroupId).length})',
-                  style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                    fontWeight: FontWeight.bold,
-                    color: AppColors.primary,
-                  ),
-                ),
-              ],
-            ),
+            // ─── Recent transactions ───────────────────────────────────
+            _buildRecentHeader(s),
             const SizedBox(height: 12),
-            if (s.expenses.where((e) => e.groupId == s.currentGroupId).isEmpty)
-              Container(
-                width: double.infinity,
-                padding: const EdgeInsets.symmetric(vertical: 32),
-                decoration: BoxDecoration(
-                  color: Colors.grey.shade100,
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: Column(
-                  children: [
-                    Icon(
-                      Icons.inbox_rounded,
-                      size: 56,
-                      color: Colors.grey.shade400,
-                    ),
-                    const SizedBox(height: 12),
-                    Text(
-                      'No expenses yet',
-                      style: TextStyle(color: AppColors.subtext, fontSize: 14),
-                    ),
-                  ],
-                ),
-              )
-            else
-              ...s.expenses
-                  .where(
-                    (e) =>
-                        e.groupId == s.currentGroupId &&
-                        e.participants.contains(currentUser),
-                  )
-                  .take(5)
-                  .map((exp) {
-                    final payer = s.currentGroupUsers.firstWhere(
-                      (u) => u.id == exp.payerId,
-                      orElse: () =>
-                          UserModel(id: exp.payerId, name: exp.payerId),
-                    );
-                    final participantNames = exp.participants
-                        .map((id) {
-                          final user = s.currentGroupUsers.firstWhere(
-                            (u) => u.id == id,
-                            orElse: () => UserModel(id: id, name: id),
-                          );
-                          return user.name;
-                        })
-                        .join(', ');
 
-                    return Padding(
-                      padding: const EdgeInsets.only(bottom: 12),
-                      child: Card(
-                        elevation: 0,
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(16),
-                          side: const BorderSide(color: Color(0xFFE5E7EB)),
-                        ),
-                        child: Container(
-                          decoration: BoxDecoration(
-                            borderRadius: BorderRadius.circular(16),
-                            color: Colors.white,
-                          ),
-                          child: ListTile(
-                            leading: Builder(
-                              builder: (_) {
-                                final visual = _getExpenseVisual(exp.note);
+            // ─── IMPROVEMENT 5: Category chips ────────────────────────
+            _buildCategoryChips(),
+            const SizedBox(height: 12),
 
-                                return Container(
-                                  width: 50,
-                                  height: 50,
-                                  decoration: BoxDecoration(
-                                    color: visual["color"].withOpacity(0.15),
-                                    borderRadius: BorderRadius.circular(14),
-                                  ),
-                                  child: Center(
-                                    child: Icon(
-                                      visual["icon"],
-                                      color: visual["color"],
-                                      size: 26,
-                                    ),
-                                  ),
-                                );
-                              },
-                            ),
-                            title: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text(
-                                  '₹${exp.total.toStringAsFixed(2)}',
-                                  style: const TextStyle(
-                                    fontWeight: FontWeight.bold,
-                                    fontSize: 16,
-                                    color: AppColors.primary,
-                                  ),
-                                ),
-                                const SizedBox(height: 2),
-                                Text(
-                                  exp.note,
-                                  style: TextStyle(
-                                    fontWeight: FontWeight.w600,
-                                    fontSize: 12,
-                                    color: Colors.grey.shade700,
-                                  ),
-                                ),
-                              ],
-                            ),
-                            subtitle: Padding(
-                              padding: const EdgeInsets.only(top: 6),
-                              child: Row(
-                                children: [
-                                  Icon(
-                                    Icons.person_rounded,
-                                    size: 14,
-                                    color: AppColors.primary,
-                                  ),
-                                  const SizedBox(width: 4),
-                                  Expanded(
-                                    child: Text(
-                                      '${payer.name} paid • Split: $participantNames',
-                                      style: TextStyle(
-                                        fontWeight: FontWeight.w500,
-                                        fontSize: 11,
-                                        color: AppColors.subtext,
-                                      ),
-                                      maxLines: 1,
-                                      overflow: TextOverflow.ellipsis,
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ),
-                            trailing: IconButton(
-                              icon: const Icon(
-                                Icons.delete_outline_rounded,
-                                color: AppColors.danger,
-                                size: 20,
-                              ),
-                              onPressed: () => s.deleteExpense(exp.id),
-                            ),
-                            contentPadding: const EdgeInsets.symmetric(
-                              horizontal: 14,
-                              vertical: 8,
-                            ),
-                          ),
-                        ),
-                      ),
-                    );
-                  }),
+            // ─── Expense list with personal share ─────────────────────
+            _buildExpenseList(s),
           ],
         ),
       ),
     );
   }
 
-  // === BUILD PIE CHART WITH LEGEND ===
+  // ─── Stat cards: fixed-height horizontal scroll, immune to screen width ─────
+  Widget _buildStatsGrid(
+    double myExpense,
+    double youOwe,
+    double toReceive,
+    double total,
+  ) {
+    return SizedBox(
+      height: 115,
+      child: ListView(
+        scrollDirection: Axis.horizontal,
+        physics: const BouncingScrollPhysics(),
+        children: [
+          _statGridCard(
+            title: 'My Expense',
+            amount: myExpense,
+            icon: Icons.account_balance_wallet,
+            color: AppColors.primary,
+          ),
+          const SizedBox(width: 10),
+          _statGridCard(
+            title: 'You Owe',
+            amount: youOwe,
+            icon: Icons.arrow_upward_rounded,
+            color: AppColors.danger,
+          ),
+          const SizedBox(width: 10),
+          _statGridCard(
+            title: 'To Receive',
+            amount: toReceive,
+            icon: Icons.arrow_downward_rounded,
+            color: AppColors.success,
+          ),
+          const SizedBox(width: 10),
+          _statGridCard(
+            title: 'Total Expenses',
+            amount: total,
+            icon: Icons.receipt_long_rounded,
+            color: AppColors.warning,
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _statGridCard({
+    required String title,
+    required double amount,
+    required IconData icon,
+    required Color color,
+  }) {
+    return Container(
+      width: 148,
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: AppColors.border),
+        boxShadow: [
+          BoxShadow(color: Colors.black.withOpacity(0.03), blurRadius: 6),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(5),
+                decoration: BoxDecoration(
+                  color: color.withOpacity(0.12),
+                  borderRadius: BorderRadius.circular(7),
+                ),
+                child: Icon(icon, color: color, size: 13),
+              ),
+              const SizedBox(width: 6),
+              Expanded(
+                child: Text(
+                  title,
+                  style: TextStyle(
+                    fontSize: 11,
+                    color: AppColors.subtext,
+                    fontWeight: FontWeight.w500,
+                  ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          Text(
+            '₹${amount.toStringAsFixed(0)}',
+            style: TextStyle(
+              fontWeight: FontWeight.bold,
+              fontSize: 18,
+              color: color,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // ─── IMPROVEMENT 3: Spending personality with segmented bar ───────────────
+  Widget _buildSpendingPersonality(ExpenseService s) {
+    final userExpenses = s.expenses
+        .where(
+          (e) =>
+              e.groupId == s.currentGroupId &&
+              e.participants.contains(currentUser),
+        )
+        .toList();
+    if (userExpenses.isEmpty) return const SizedBox();
+
+    final categories = <String, double>{
+      'Food': 0,
+      'Travel': 0,
+      'Grocery': 0,
+      'Fun': 0,
+      'Others': 0,
+    };
+    final categoryColors = <String, Color>{
+      'Food': Colors.orange,
+      'Travel': Colors.blue,
+      'Grocery': Colors.green,
+      'Fun': Colors.purple,
+      'Others': Colors.grey,
+    };
+
+    for (final exp in userExpenses) {
+      final share =
+          exp.splits?[currentUser] ?? (exp.total / exp.participants.length);
+      final cat = _getCategoryForNote(exp.note == null ? '' : exp.note);
+      categories[cat] = (categories[cat] ?? 0) + share;
+    }
+
+    final total = categories.values.fold(0.0, (a, b) => a + b);
+    if (total == 0) return const SizedBox();
+
+    final sorted = categories.entries.toList()
+      ..sort((a, b) => b.value.compareTo(a.value));
+    final top = sorted.first;
+    final topPct = ((top.value / total) * 100).round();
+
+    final emojiMap = {
+      'Food': '🍔',
+      'Travel': '✈️',
+      'Grocery': '🛒',
+      'Fun': '🎬',
+      'Others': '💳',
+    };
+    final titleMap = {
+      'Food': 'The Foodie',
+      'Travel': 'The Traveller',
+      'Grocery': 'The Home Manager',
+      'Fun': 'The Fun Lover',
+      'Others': 'The Explorer',
+    };
+
+    final user = s.currentGroupUsers.firstWhere(
+      (u) => u.id == currentUser,
+      orElse: () => UserModel(id: currentUser, name: currentUser),
+    );
+
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: AppColors.border),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              CircleAvatar(
+                radius: 22,
+                backgroundImage: NetworkImage(user.avatar),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      '${user.name}: ${titleMap[top.key]} ${emojiMap[top.key]}',
+                      style: const TextStyle(
+                        fontWeight: FontWeight.bold,
+                        fontSize: 14,
+                      ),
+                    ),
+                    Text(
+                      '$topPct% on ${top.key.toLowerCase()}',
+                      style: TextStyle(fontSize: 12, color: AppColors.subtext),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          // Segmented bar
+          ClipRRect(
+            borderRadius: BorderRadius.circular(4),
+            child: SizedBox(
+              height: 8,
+              child: Row(
+                children: sorted.where((e) => e.value > 0).map((e) {
+                  final flex = ((e.value / total) * 100).round();
+                  return Expanded(
+                    flex: flex < 1 ? 1 : flex,
+                    child: Container(
+                      color: categoryColors[e.key],
+                      margin: const EdgeInsets.only(right: 1),
+                    ),
+                  );
+                }).toList(),
+              ),
+            ),
+          ),
+          const SizedBox(height: 8),
+          // Legend
+          Wrap(
+            spacing: 10,
+            runSpacing: 4,
+            children: sorted.where((e) => e.value > 0).map((e) {
+              return Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Container(
+                    width: 8,
+                    height: 8,
+                    decoration: BoxDecoration(
+                      color: categoryColors[e.key],
+                      shape: BoxShape.circle,
+                    ),
+                  ),
+                  const SizedBox(width: 4),
+                  Text(
+                    '${e.key} ${((e.value / total) * 100).round()}%',
+                    style: TextStyle(fontSize: 10, color: AppColors.subtext),
+                  ),
+                ],
+              );
+            }).toList(),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // ─── IMPROVEMENT 4: Compact settlement card (grouped, not separate cards) ──
+  Widget _buildAllSettledCard() {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(vertical: 28, horizontal: 24),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          colors: [Colors.green.shade50, Colors.teal.shade50],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: Colors.green.shade300, width: 2),
+      ),
+      child: Column(
+        children: [
+          Icon(
+            Icons.check_circle_rounded,
+            size: 56,
+            color: Colors.green.shade600,
+          ),
+          const SizedBox(height: 12),
+          Text(
+            'All Settled Up! 🎉',
+            style: TextStyle(
+              color: Colors.green.shade700,
+              fontWeight: FontWeight.bold,
+              fontSize: 17,
+            ),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            'No pending balances',
+            style: TextStyle(color: Colors.green.shade600, fontSize: 13),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildSettlementCard(
+    ExpenseService s,
+    List<MapEntry<String, double>> balanceCards,
+  ) {
+    return Container(
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: AppColors.border),
+      ),
+      child: Column(
+        children: balanceCards.asMap().entries.map((entry) {
+          final idx = entry.key;
+          final e = entry.value;
+          final isOwed = e.value > 0;
+          final user = s.currentGroupUsers.firstWhere(
+            (u) => u.id == e.key,
+            orElse: () => UserModel(id: e.key, name: e.key),
+          );
+
+          return Column(
+            children: [
+              if (idx != 0) const Divider(height: 1, indent: 16, endIndent: 16),
+              // ─── IMPROVEMENT 4: Swipe to settle ────────────────────
+              isOwed
+                  ? _settlementRow(user, e.value, isOwed, s, e.key)
+                  : Dismissible(
+                      key: Key('settle_${e.key}'),
+                      direction: DismissDirection.startToEnd,
+                      confirmDismiss: (_) async {
+                        _showQuickSettleDialog(
+                          context,
+                          s,
+                          e.key,
+                          e.value.abs(),
+                        );
+                        return false;
+                      },
+                      background: Container(
+                        decoration: BoxDecoration(
+                          color: Colors.green.shade50,
+                          borderRadius: idx == 0
+                              ? const BorderRadius.only(
+                                  topLeft: Radius.circular(16),
+                                  topRight: Radius.circular(16),
+                                )
+                              : (idx == balanceCards.length - 1
+                                    ? const BorderRadius.only(
+                                        bottomLeft: Radius.circular(16),
+                                        bottomRight: Radius.circular(16),
+                                      )
+                                    : BorderRadius.zero),
+                        ),
+                        alignment: Alignment.centerLeft,
+                        padding: const EdgeInsets.only(left: 20),
+                        child: Row(
+                          children: [
+                            Icon(
+                              Icons.swipe_right_alt_rounded,
+                              color: Colors.green.shade600,
+                            ),
+                            const SizedBox(width: 6),
+                            Text(
+                              'Swipe to pay',
+                              style: TextStyle(
+                                color: Colors.green.shade700,
+                                fontSize: 12,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      child: _settlementRow(user, e.value, isOwed, s, e.key),
+                    ),
+            ],
+          );
+        }).toList(),
+      ),
+    );
+  }
+
+  Widget _settlementRow(
+    UserModel user,
+    double value,
+    bool isOwed,
+    ExpenseService s,
+    String userId,
+  ) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+      child: Row(
+        children: [
+          CircleAvatar(radius: 22, backgroundImage: NetworkImage(user.avatar)),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  user.name,
+                  style: const TextStyle(
+                    fontWeight: FontWeight.bold,
+                    fontSize: 15,
+                  ),
+                ),
+                Text(
+                  isOwed ? 'owes you' : 'you owe',
+                  style: TextStyle(
+                    color: isOwed ? AppColors.success : AppColors.danger,
+                    fontSize: 12,
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.end,
+            children: [
+              Text(
+                '₹${value.abs().toStringAsFixed(2)}',
+                style: TextStyle(
+                  fontSize: 17,
+                  fontWeight: FontWeight.bold,
+                  color: isOwed ? Colors.green.shade700 : Colors.red.shade700,
+                ),
+              ),
+              const SizedBox(height: 6),
+              if (!isOwed)
+                GestureDetector(
+                  onTap: () =>
+                      _showQuickSettleDialog(context, s, userId, value.abs()),
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 14,
+                      vertical: 6,
+                    ),
+                    decoration: BoxDecoration(
+                      color: Colors.green.shade600,
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: const Text(
+                      'Pay',
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontSize: 12,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ),
+                )
+              else
+                GestureDetector(
+                  onTap: () {
+                    s.addMessage(
+                      senderId: currentUser,
+                      senderName: "Reminder",
+                      message:
+                          "🔔 Reminder: ${user.name}, please pay ₹${value.toStringAsFixed(2)}",
+                    );
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(content: Text("Reminder sent in chat")),
+                    );
+                  },
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 10,
+                      vertical: 6,
+                    ),
+                    decoration: BoxDecoration(
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(color: AppColors.border),
+                    ),
+                    child: Text(
+                      'Remind',
+                      style: TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w500,
+                        color: AppColors.subtext,
+                      ),
+                    ),
+                  ),
+                ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  // ─── Recent header ──────────────────────────────────────────────────────────
+  Widget _buildRecentHeader(ExpenseService s) {
+    final count = s.expenses.where((e) => e.groupId == s.currentGroupId).length;
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      children: [
+        Row(
+          children: [
+            Icon(Icons.receipt_rounded, color: AppColors.text, size: 24),
+            const SizedBox(width: 8),
+            Text(
+              'Recent ($count)',
+              style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                fontWeight: FontWeight.bold,
+                color: AppColors.primary,
+              ),
+            ),
+          ],
+        ),
+      ],
+    );
+  }
+
+  // ─── IMPROVEMENT 5: Category filter chips ─────────────────────────────────
+  Widget _buildCategoryChips() {
+    return SizedBox(
+      height: 34,
+      child: ListView.separated(
+        scrollDirection: Axis.horizontal,
+        itemCount: _categories.length,
+        separatorBuilder: (_, __) => const SizedBox(width: 8),
+        itemBuilder: (context, index) {
+          final cat = _categories[index];
+          final isSelected = _selectedCategory == cat;
+          return GestureDetector(
+            onTap: () => setState(() => _selectedCategory = cat),
+            child: AnimatedContainer(
+              duration: const Duration(milliseconds: 180),
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+              decoration: BoxDecoration(
+                color: isSelected ? AppColors.primary : Colors.white,
+                borderRadius: BorderRadius.circular(20),
+                border: Border.all(
+                  color: isSelected ? AppColors.primary : AppColors.border,
+                ),
+              ),
+              child: Text(
+                cat,
+                style: TextStyle(
+                  fontSize: 12,
+                  fontWeight: isSelected ? FontWeight.w600 : FontWeight.w400,
+                  color: isSelected ? Colors.white : AppColors.subtext,
+                ),
+              ),
+            ),
+          );
+        },
+      ),
+    );
+  }
+
+  // ─── IMPROVEMENT 5: Expense list with personal share + swipe to delete ─────
+  Widget _buildExpenseList(ExpenseService s) {
+    var expenses = s.expenses
+        .where(
+          (e) =>
+              e.groupId == s.currentGroupId &&
+              e.participants.contains(currentUser),
+        )
+        .toList();
+
+    if (_selectedCategory != 'All') {
+      expenses = expenses
+          .where(
+            (e) =>
+                _getCategoryForNote(e.note == null ? '' : e.note) ==
+                _selectedCategory,
+          )
+          .toList();
+    }
+
+    if (expenses.isEmpty) {
+      return Container(
+        width: double.infinity,
+        padding: const EdgeInsets.symmetric(vertical: 28),
+        decoration: BoxDecoration(
+          color: Colors.grey.shade100,
+          borderRadius: BorderRadius.circular(12),
+        ),
+        child: Column(
+          children: [
+            Icon(Icons.inbox_rounded, size: 48, color: Colors.grey.shade400),
+            const SizedBox(height: 10),
+            Text(
+              (_selectedCategory == 'All')
+                  ? 'No expenses yet'
+                  : 'No ${(_selectedCategory).toLowerCase()} expenses',
+              style: TextStyle(color: AppColors.subtext, fontSize: 14),
+            ),
+          ],
+        ),
+      );
+    }
+
+    return Column(
+      children: expenses.take(10).map((exp) {
+        final payerUser = s.currentGroupUsers.firstWhere(
+          (u) => u.id == exp.payerId,
+          orElse: () => UserModel(id: exp.payerId, name: exp.payerId),
+        );
+
+        // Personal share for this user
+        double myShare = 0;
+        if (exp.splits != null && exp.splits!.containsKey(currentUser)) {
+          myShare = exp.splits![currentUser]!;
+        } else if (exp.participants.contains(currentUser)) {
+          myShare = exp.total / exp.participants.length;
+        }
+        final iPaid = exp.payerId == currentUser;
+        final iGetBack = iPaid && myShare < exp.total;
+        final iOwe = !iPaid && myShare > 0;
+
+        final visual = _getExpenseVisual(exp.note);
+
+        return Padding(
+          padding: const EdgeInsets.only(bottom: 10),
+          // ─── IMPROVEMENT 5: Swipe to delete ─────────────────────────
+          child: Dismissible(
+            key: Key(exp.id ?? UniqueKey().toString()),
+            direction: DismissDirection.endToStart,
+            confirmDismiss: (_) async {
+              bool confirm = false;
+              await showDialog(
+                context: context,
+                builder: (ctx) => AlertDialog(
+                  title: const Text('Delete expense?'),
+                  content: Text(
+                    'Remove "${exp.note ?? 'Expense'}" from the group?',
+                  ),
+                  actions: [
+                    TextButton(
+                      onPressed: () {
+                        Navigator.pop(ctx);
+                      },
+                      child: const Text('Cancel'),
+                    ),
+                    ElevatedButton(
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: AppColors.danger,
+                      ),
+                      onPressed: () {
+                        confirm = true;
+                        Navigator.pop(ctx);
+                      },
+                      child: const Text('Delete'),
+                    ),
+                  ],
+                ),
+              );
+              return confirm;
+            },
+            onDismissed: (_) => s.deleteExpense(exp.id),
+            background: Container(
+              alignment: Alignment.centerRight,
+              padding: const EdgeInsets.only(right: 20),
+              decoration: BoxDecoration(
+                color: AppColors.danger.withOpacity(0.1),
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(color: AppColors.danger.withOpacity(0.3)),
+              ),
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(Icons.delete_outline_rounded, color: AppColors.danger),
+                  Text(
+                    'Delete',
+                    style: TextStyle(color: AppColors.danger, fontSize: 11),
+                  ),
+                ],
+              ),
+            ),
+            child: Card(
+              elevation: 0,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(14),
+                side: const BorderSide(color: Color(0xFFE5E7EB)),
+              ),
+              color: Colors.white,
+              child: Padding(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 14,
+                  vertical: 12,
+                ),
+                child: Row(
+                  children: [
+                    Container(
+                      width: 44,
+                      height: 44,
+                      decoration: BoxDecoration(
+                        color: visual["bg"],
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: Center(
+                        child: Icon(
+                          visual["icon"],
+                          color: visual["color"],
+                          size: 22,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            exp.note ?? 'Expense',
+                            style: const TextStyle(
+                              fontWeight: FontWeight.w600,
+                              fontSize: 14,
+                            ),
+                          ),
+                          const SizedBox(height: 2),
+                          Text(
+                            '${payerUser.name} paid · ${exp.participants.length} people',
+                            style: TextStyle(
+                              fontSize: 11,
+                              color: AppColors.subtext,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    Column(
+                      crossAxisAlignment: CrossAxisAlignment.end,
+                      children: [
+                        Text(
+                          '₹${exp.total.toStringAsFixed(0)}',
+                          style: const TextStyle(
+                            fontWeight: FontWeight.bold,
+                            fontSize: 15,
+                          ),
+                        ),
+                        const SizedBox(height: 2),
+                        // ─── Personal share badge ──────────────────────────────
+                        if (iGetBack)
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 7,
+                              vertical: 2,
+                            ),
+                            decoration: BoxDecoration(
+                              color: Colors.green.shade50,
+                              borderRadius: BorderRadius.circular(6),
+                            ),
+                            child: Text(
+                              'you get ₹${(exp.total - myShare).toStringAsFixed(0)}',
+                              style: TextStyle(
+                                color: Colors.green.shade700,
+                                fontSize: 10,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                          )
+                        else if (iOwe)
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 7,
+                              vertical: 2,
+                            ),
+                            decoration: BoxDecoration(
+                              color: Colors.red.shade50,
+                              borderRadius: BorderRadius.circular(6),
+                            ),
+                            child: Text(
+                              'you owe ₹${myShare.toStringAsFixed(0)}',
+                              style: TextStyle(
+                                color: Colors.red.shade700,
+                                fontSize: 10,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                          )
+                        else
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 7,
+                              vertical: 2,
+                            ),
+                            decoration: BoxDecoration(
+                              color: Colors.grey.shade100,
+                              borderRadius: BorderRadius.circular(6),
+                            ),
+                            child: Text(
+                              'settled',
+                              style: TextStyle(
+                                color: AppColors.subtext,
+                                fontSize: 10,
+                              ),
+                            ),
+                          ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        );
+      }).toList(),
+    );
+  }
+
+  // ─── PIE CHART (unchanged) ─────────────────────────────────────────────────
   Widget _buildPieChartWithLegend(ExpenseService s) {
     final colors = [
       AppColors.primary,
@@ -843,7 +1373,6 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
       Colors.pink,
       Colors.teal,
     ];
-
     final chartExpenses = s.expenses
         .where(
           (e) =>
@@ -852,11 +1381,9 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
         )
         .take(5)
         .toList();
-
     final chartData = chartExpenses
-        .map((e) => MapEntry(e.note, e.total))
+        .map((e) => MapEntry(e.note ?? 'Expense', e.total))
         .toList();
-
     final total = chartData.fold<double>(0, (sum, e) => sum + e.value);
     if (total == 0) return const SizedBox();
 
@@ -881,7 +1408,7 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
                 child: Icon(
                   Icons.pie_chart_rounded,
                   color: AppColors.primary,
-                  size: 22,
+                  size: 20,
                 ),
               ),
               const SizedBox(width: 10),
@@ -890,147 +1417,90 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
                 style: Theme.of(context).textTheme.bodyLarge?.copyWith(
                   fontWeight: FontWeight.w700,
                   color: AppColors.primary,
-                  fontSize: 15,
+                  fontSize: 14,
                 ),
               ),
             ],
           ),
-
-          const SizedBox(height: 18),
-
-          Container(
-            padding: const EdgeInsets.all(14),
-            decoration: BoxDecoration(
-              color: Colors.grey.shade50,
-              borderRadius: BorderRadius.circular(12),
-            ),
-
-            child: Column(
-              children: [
-                /// PIE CHART
-                SizedBox(
-                  height: 160,
-                  child: PieChart(
-                    PieChartData(
-                      pieTouchData: PieTouchData(
-                        touchCallback: (event, response) {
-                          setState(() {
-                            if (!event.isInterestedForInteractions ||
-                                response == null ||
-                                response.touchedSection == null) {
-                              touchedIndex = -1;
-                            } else {
-                              touchedIndex =
-                                  response.touchedSection!.touchedSectionIndex;
-                            }
-                          });
-                        },
-                      ),
-
-                      sections: chartData.asMap().entries.map((entry) {
-                        final isTouched = entry.key == touchedIndex;
-                        final percentage = (entry.value.value / total) * 100;
-
-                        final radius = isTouched ? 85.0 : 50.0;
-                        final fontSize = isTouched ? 14.0 : 11.0;
-
-                        return PieChartSectionData(
-                          value: entry.value.value,
-                          title: '${percentage.toStringAsFixed(0)}%',
-                          color: colors[entry.key % colors.length],
-                          radius: radius,
-                          titleStyle: TextStyle(
-                            fontWeight: FontWeight.bold,
-                            color: Colors.white,
-                            fontSize: fontSize,
-                          ),
-                        );
-                      }).toList(),
-
-                      centerSpaceRadius: 35,
-                      sectionsSpace: 2,
-                    ),
-                  ),
+          const SizedBox(height: 16),
+          SizedBox(
+            height: 160,
+            child: PieChart(
+              PieChartData(
+                pieTouchData: PieTouchData(
+                  touchCallback: (event, response) {
+                    setState(() {
+                      if (!event.isInterestedForInteractions ||
+                          response == null ||
+                          response.touchedSection == null) {
+                        touchedIndex = -1;
+                      } else {
+                        touchedIndex =
+                            response.touchedSection!.touchedSectionIndex;
+                      }
+                    });
+                  },
                 ),
-
-                const SizedBox(height: 16),
-
-                /// SHOW DETAILS WHEN SLICE IS TOUCHED
-                if (touchedIndex != -1 && touchedIndex < chartExpenses.length)
-                  _buildExpenseDetails(s, chartExpenses[touchedIndex]),
-
-                const SizedBox(height: 16),
-
-                /// LEGEND
-                ...chartData.asMap().entries.map((entry) {
-                  final percentage = (entry.value.value / total) * 100;
-
-                  return Padding(
-                    padding: const EdgeInsets.only(bottom: 10),
-
-                    child: Container(
-                      padding: const EdgeInsets.all(10),
-
-                      decoration: BoxDecoration(
-                        color: Colors.white,
-                        borderRadius: BorderRadius.circular(8),
-                        border: Border.all(
-                          color: colors[entry.key % colors.length].withOpacity(
-                            0.3,
-                          ),
-                          width: 1.5,
-                        ),
-                      ),
-
-                      child: Row(
-                        children: [
-                          Container(
-                            width: 16,
-                            height: 16,
-                            decoration: BoxDecoration(
-                              color: colors[entry.key % colors.length],
-                              shape: BoxShape.circle,
-                            ),
-                          ),
-
-                          const SizedBox(width: 12),
-
-                          Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-
-                              children: [
-                                Text(
-                                  entry.value.key,
-                                  style: const TextStyle(
-                                    fontWeight: FontWeight.w700,
-                                    fontSize: 13,
-                                    color: AppColors.text,
-                                  ),
-                                  maxLines: 1,
-                                  overflow: TextOverflow.ellipsis,
-                                ),
-
-                                Text(
-                                  '₹${entry.value.value.toStringAsFixed(2)} '
-                                  '(${percentage.toStringAsFixed(1)}%)',
-                                  style: TextStyle(
-                                    color: Colors.grey.shade700,
-                                    fontSize: 12,
-                                    fontWeight: FontWeight.w500,
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                        ],
-                      ),
+                sections: chartData.asMap().entries.map((entry) {
+                  final isTouched = entry.key == touchedIndex;
+                  final pct = (entry.value.value / total) * 100;
+                  return PieChartSectionData(
+                    value: entry.value.value,
+                    title: '${pct.toStringAsFixed(0)}%',
+                    color: colors[entry.key % colors.length],
+                    radius: isTouched ? 82.0 : 50.0,
+                    titleStyle: TextStyle(
+                      fontWeight: FontWeight.bold,
+                      color: Colors.white,
+                      fontSize: isTouched ? 14.0 : 11.0,
                     ),
                   );
-                }),
-              ],
+                }).toList(),
+                centerSpaceRadius: 35,
+                sectionsSpace: 2,
+              ),
             ),
           ),
+          if (touchedIndex != -1 && touchedIndex < chartExpenses.length) ...[
+            const SizedBox(height: 12),
+            _buildExpenseDetails(s, chartExpenses[touchedIndex]),
+          ],
+          const SizedBox(height: 14),
+          ...chartData.asMap().entries.map((entry) {
+            final pct = (entry.value.value / total) * 100;
+            return Padding(
+              padding: const EdgeInsets.only(bottom: 8),
+              child: Row(
+                children: [
+                  Container(
+                    width: 12,
+                    height: 12,
+                    decoration: BoxDecoration(
+                      color: colors[entry.key % colors.length],
+                      shape: BoxShape.circle,
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Text(
+                      entry.value.key,
+                      style: const TextStyle(
+                        fontWeight: FontWeight.w600,
+                        fontSize: 12,
+                        color: AppColors.text,
+                      ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                  Text(
+                    '₹${entry.value.value.toStringAsFixed(0)} (${pct.toStringAsFixed(1)}%)',
+                    style: TextStyle(color: Colors.grey.shade600, fontSize: 11),
+                  ),
+                ],
+              ),
+            );
+          }),
         ],
       ),
     );
@@ -1038,14 +1508,13 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
 
   Widget _successOverlay() {
     if (!showSuccess) return const SizedBox();
-
     return Positioned.fill(
       child: Container(
         color: AppColors.text.withOpacity(0.25),
         child: Center(
           child: Container(
-            width: 120,
-            height: 120,
+            width: 110,
+            height: 110,
             decoration: BoxDecoration(
               color: Colors.green.shade600,
               shape: BoxShape.circle,
@@ -1057,13 +1526,13 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
     );
   }
 
-  // === ADD EXPENSE TAB ===
+  // ─── ADD EXPENSE TAB (unchanged logic, minor polish) ──────────────────────
   Widget _addExpenseTab(ExpenseService s) {
     payer = payer.isEmpty ? 'A' : payer;
     return Container(
       color: AppColors.background,
       child: SingleChildScrollView(
-        padding: const EdgeInsets.fromLTRB(16, 100, 16, 20),
+        padding: const EdgeInsets.fromLTRB(16, 100, 16, 100),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -1105,15 +1574,10 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
                     fontSize: 16,
                   ),
                 ),
-
                 Switch(
                   value: equalSplit,
                   activeThumbColor: AppColors.primary,
-                  onChanged: (v) {
-                    setState(() {
-                      equalSplit = v;
-                    });
-                  },
+                  onChanged: (v) => setState(() => equalSplit = v),
                 ),
               ],
             ),
@@ -1121,66 +1585,53 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
             Text('Select participants', style: TextStyle(color: Colors.grey)),
             const SizedBox(height: 10),
             Column(
-              children: [
-                for (final u in s.currentGroupUsers.where((u) => u.id != payer))
-                  Builder(
-                    builder: (context) {
-                      if (!splitControllers.containsKey(u.id)) {
-                        splitControllers[u.id] = TextEditingController();
-                      }
-
-                      return Padding(
-                        padding: const EdgeInsets.only(bottom: 10),
-                        child: Row(
-                          children: [
-                            Checkbox(
-                              value: selectedUsers.contains(u.id),
-                              onChanged: (v) {
-                                setState(() {
-                                  if (v == true) {
-                                    selectedUsers.add(u.id);
-                                  } else {
-                                    selectedUsers.remove(u.id);
-                                  }
-                                });
-                              },
-                            ),
-
-                            CircleAvatar(
-                              radius: 16,
-                              backgroundImage: NetworkImage(
-                                "https://api.dicebear.com/7.x/personas/png?seed=${u.name}",
-                              ),
-                            ),
-
-                            const SizedBox(width: 10),
-
-                            Expanded(
-                              child: Text(
-                                u.name,
-                                style: const TextStyle(
-                                  fontWeight: FontWeight.w600,
-                                ),
-                              ),
-                            ),
-
-                            if (!equalSplit)
-                              SizedBox(
-                                width: 120,
-                                child: TextField(
-                                  controller: splitControllers[u.id],
-                                  keyboardType: TextInputType.number,
-                                  decoration: const InputDecoration(
-                                    hintText: "Amount",
-                                  ),
-                                ),
-                              ),
-                          ],
+              children: s.currentGroupUsers.where((u) => u.id != payer).map((
+                u,
+              ) {
+                if (!splitControllers.containsKey(u.id)) {
+                  splitControllers[u.id] = TextEditingController();
+                }
+                return Padding(
+                  padding: const EdgeInsets.only(bottom: 10),
+                  child: Row(
+                    children: [
+                      Checkbox(
+                        value: selectedUsers.contains(u.id),
+                        onChanged: (v) => setState(() {
+                          if (v == true)
+                            selectedUsers.add(u.id);
+                          else
+                            selectedUsers.remove(u.id);
+                        }),
+                      ),
+                      CircleAvatar(
+                        radius: 16,
+                        backgroundImage: NetworkImage(
+                          "https://api.dicebear.com/7.x/personas/png?seed=${u.name}",
                         ),
-                      );
-                    },
+                      ),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: Text(
+                          u.name,
+                          style: const TextStyle(fontWeight: FontWeight.w600),
+                        ),
+                      ),
+                      if (!equalSplit)
+                        SizedBox(
+                          width: 110,
+                          child: TextField(
+                            controller: splitControllers[u.id],
+                            keyboardType: TextInputType.number,
+                            decoration: const InputDecoration(
+                              hintText: "Amount",
+                            ),
+                          ),
+                        ),
+                    ],
                   ),
-              ],
+                );
+              }).toList(),
             ),
             const SizedBox(height: 24),
             SizedBox(
@@ -1188,55 +1639,48 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
               child: ElevatedButton.icon(
                 onPressed: () {
                   try {
+                    if (selectedUsers.isEmpty) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(
+                          content: Text("Add at least one other participant"),
+                        ),
+                      );
+                      return;
+                    }
                     final total = double.tryParse(amountCtrl.text.trim()) ?? 0;
                     if (total <= 0) throw Exception('Amount must be > 0');
-
                     final splits = <String, double>{};
-
                     if (equalSplit) {
-                      if (selectedUsers.isEmpty) {
+                      if (selectedUsers.isEmpty)
                         throw Exception("Select at least one user");
-                      }
-
                       final participants = [...selectedUsers, payer];
                       final count = participants.length;
-
                       final baseShare = (total / count);
                       double remaining = total;
-
                       for (int i = 0; i < count; i++) {
                         double share;
-
                         if (i == count - 1) {
                           share = remaining;
                         } else {
                           share = double.parse(baseShare.toStringAsFixed(2));
                           remaining -= share;
                         }
-
                         splits[participants[i]] = share;
                       }
                     } else {
                       double enteredTotal = 0;
-
                       for (final id in selectedUsers) {
                         final ctrl = splitControllers[id];
                         if (ctrl == null) continue;
-
                         final amount = double.tryParse(ctrl.text) ?? 0;
-
                         if (amount > 0) {
                           splits[id] = amount;
                           enteredTotal += amount;
                         }
                       }
-
                       final payerShare = total - enteredTotal;
-
-                      if (payerShare < 0) {
+                      if (payerShare < 0)
                         throw Exception("Split exceeds total amount");
-                      }
-
                       splits[payer] = payerShare;
                     }
                     s.addExpenseCustom(
@@ -1247,17 +1691,11 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
                           ? 'Expense'
                           : noteCtrl.text.trim(),
                     );
-
                     amountCtrl.clear();
                     noteCtrl.clear();
                     selectedUsers.clear();
-
-                    for (var c in splitControllers.values) {
-                      c.clear();
-                    }
-
+                    for (var c in splitControllers.values) c.clear();
                     setState(() => tabIndex = 0);
-
                     ScaffoldMessenger.of(context).showSnackBar(
                       SnackBar(
                         content: const Text('✓ Expense added!'),
@@ -1288,7 +1726,34 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
     );
   }
 
-  // === MESSAGES TAB ===
+  Color _getMessageColor(String message, bool isCurrentUser) {
+    // Reminder
+    if (message.contains("🔔") || message.toLowerCase().contains("reminder")) {
+      return const Color.fromARGB(255, 230, 143, 13);
+    }
+
+    // Payment
+    if (message.contains("✅") || message.toLowerCase().contains("paid")) {
+      return const Color.fromARGB(255, 63, 214, 68);
+    }
+
+    // Normal messages
+    return isCurrentUser ? AppColors.primary : Colors.grey.shade200;
+  }
+
+  Color _getMessageTextColor(String message, bool isCurrentUser) {
+    if (message.contains("🔔") || message.toLowerCase().contains("reminder")) {
+      return const Color.fromARGB(255, 218, 8, 124);
+    }
+
+    if (message.contains("✅") || message.toLowerCase().contains("paid")) {
+      return Colors.green.shade900;
+    }
+
+    return isCurrentUser ? Colors.white : Colors.black;
+  }
+
+  // ─── MESSAGES TAB (unchanged) ─────────────────────────────────────────────
   Widget _messagesTab(ExpenseService s) {
     final groupMessages = s.messages
         .where((m) => m.groupId == s.currentGroupId)
@@ -1302,7 +1767,7 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
               top: 100,
               left: 16,
               right: 16,
-              bottom: 16,
+              bottom: 8,
             ),
             padding: const EdgeInsets.all(12),
             decoration: BoxDecoration(
@@ -1333,15 +1798,15 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
                       children: [
                         Icon(
                           Icons.message_outlined,
-                          size: 56,
+                          size: 52,
                           color: Colors.grey.shade400,
                         ),
-                        const SizedBox(height: 12),
+                        const SizedBox(height: 10),
                         Text(
                           'No messages yet',
                           style: TextStyle(
                             color: AppColors.subtext,
-                            fontSize: 15,
+                            fontSize: 14,
                           ),
                         ),
                       ],
@@ -1356,7 +1821,7 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
                       return Padding(
                         padding: const EdgeInsets.symmetric(
                           horizontal: 12,
-                          vertical: 8,
+                          vertical: 6,
                         ),
                         child: Align(
                           alignment: isCurrentUser
@@ -1368,9 +1833,10 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
                                   MediaQuery.of(context).size.width * 0.75,
                             ),
                             decoration: BoxDecoration(
-                              color: isCurrentUser
-                                  ? AppColors.primary
-                                  : Colors.grey.shade200,
+                              color: _getMessageColor(
+                                msg.message,
+                                isCurrentUser,
+                              ),
                               borderRadius: BorderRadius.circular(14),
                             ),
                             padding: const EdgeInsets.all(12),
@@ -1382,9 +1848,10 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
                                   style: TextStyle(
                                     fontWeight: FontWeight.bold,
                                     fontSize: 11,
-                                    color: isCurrentUser
-                                        ? Colors.white
-                                        : Colors.grey.shade700,
+                                    color: _getMessageTextColor(
+                                      msg.message,
+                                      isCurrentUser,
+                                    ),
                                   ),
                                 ),
                                 const SizedBox(height: 4),
@@ -1416,7 +1883,7 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
                   ),
           ),
           Padding(
-            padding: const EdgeInsets.all(12),
+            padding: const EdgeInsets.fromLTRB(12, 0, 12, 12),
             child: Row(
               children: [
                 Expanded(
@@ -1438,6 +1905,8 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
                 ),
                 const SizedBox(width: 8),
                 FloatingActionButton(
+                  heroTag: 'chat_send',
+                  mini: true,
                   onPressed: () {
                     if (messageCtrl.text.trim().isNotEmpty) {
                       final sender = s.currentGroupUsers.firstWhere(
@@ -1454,7 +1923,11 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
                     }
                   },
                   backgroundColor: AppColors.primary,
-                  child: const Icon(Icons.send_rounded, color: Colors.white),
+                  child: const Icon(
+                    Icons.send_rounded,
+                    color: Colors.white,
+                    size: 18,
+                  ),
                 ),
               ],
             ),
@@ -1464,7 +1937,7 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
     );
   }
 
-  // === USERS TAB ===
+  // ─── USERS TAB (unchanged) ────────────────────────────────────────────────
   Widget _usersTab(ExpenseService s) {
     return Container(
       color: AppColors.background,
@@ -1516,10 +1989,8 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
                       onPressed: () {
                         if (newUserNameCtrl.text.isNotEmpty) {
                           s.addUserToGroup(newUserNameCtrl.text.trim());
-
                           newUserIdCtrl.clear();
                           newUserNameCtrl.clear();
-
                           ScaffoldMessenger.of(context).showSnackBar(
                             SnackBar(
                               content: const Text('✓ User added to group!'),
@@ -1531,7 +2002,7 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
                       icon: const Icon(Icons.person_add_rounded),
                       label: const Text('Add User'),
                       style: ElevatedButton.styleFrom(
-                        backgroundColor: const Color(0xFF60A5FA), // light blue
+                        backgroundColor: const Color(0xFF60A5FA),
                         foregroundColor: Colors.white,
                       ),
                     ),
@@ -1547,8 +2018,8 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
               ).textTheme.bodyLarge?.copyWith(fontWeight: FontWeight.w600),
             ),
             const SizedBox(height: 12),
-            ...s.currentGroupUsers.map((user) {
-              return Card(
+            ...s.currentGroupUsers.map(
+              (user) => Card(
                 margin: const EdgeInsets.only(bottom: 10),
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(12),
@@ -1585,16 +2056,15 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
                         )
                       : null,
                 ),
-              );
-            }),
+              ),
+            ),
           ],
         ),
       ),
     );
   }
 
-  // === HELPER FUNCTIONS ===
-
+  // ─── HELPERS ─────────────────────────────────────────────────────────────
   Map<String, double> _calculateCurrentUserBalances(ExpenseService s) {
     final result = <String, double>{};
     for (final user in s.currentGroupUsers) {
@@ -1604,167 +2074,6 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
           (s.pairwiseOwes[currentUser]?[user.id] ?? 0);
     }
     return result;
-  }
-
-  Widget _buildSpendingPersonality(ExpenseService s) {
-    final userExpenses = s.expenses
-        .where(
-          (e) =>
-              e.groupId == s.currentGroupId &&
-              e.participants.contains(currentUser),
-        )
-        .toList();
-
-    if (userExpenses.isEmpty) return const SizedBox();
-
-    Map<String, double> categories = {
-      "food": 0,
-      "travel": 0,
-      "grocery": 0,
-      "entertainment": 0,
-      "others": 0,
-    };
-
-    for (final exp in userExpenses) {
-      final note = exp.note.toLowerCase();
-
-      final share =
-          exp.splits?[currentUser] ?? (exp.total / exp.participants.length);
-
-      if (note.contains("food") ||
-          note.contains("restaurant") ||
-          note.contains("dinner") ||
-          note.contains("lunch") ||
-          note.contains("breakfast") ||
-          note.contains("snack") ||
-          note.contains("pizza") ||
-          note.contains("burger") ||
-          note.contains("cafe") ||
-          note.contains("coffee") ||
-          note.contains("tea") ||
-          note.contains("zomato") ||
-          note.contains("swiggy")) {
-        categories["food"] = categories["food"]! + share;
-      } else if (note.contains("uber") ||
-          note.contains("ola") ||
-          note.contains("taxi") ||
-          note.contains("cab") ||
-          note.contains("flight") ||
-          note.contains("train") ||
-          note.contains("bus") ||
-          note.contains("travel") ||
-          note.contains("fuel") ||
-          note.contains("petrol") ||
-          note.contains("diesel")) {
-        categories["travel"] = categories["travel"]! + share;
-      } else if (note.contains("grocery") ||
-          note.contains("mart") ||
-          note.contains("vegetable") ||
-          note.contains("fruits") ||
-          note.contains("supermarket") ||
-          note.contains("milk") ||
-          note.contains("bread") ||
-          note.contains("daily")) {
-        categories["grocery"] = categories["grocery"]! + share;
-      } else if (note.contains("movie") ||
-          note.contains("netflix") ||
-          note.contains("spotify") ||
-          note.contains("concert") ||
-          note.contains("game") ||
-          note.contains("party") ||
-          note.contains("club") ||
-          note.contains("entertainment")) {
-        categories["entertainment"] = categories["entertainment"]! + share;
-      } else {
-        categories["others"] = categories["others"]! + share;
-      }
-    }
-
-    final total = categories.values.fold(0.0, (a, b) => a + b);
-
-    if (total == 0) return const SizedBox();
-
-    final sorted = categories.entries.toList()
-      ..sort((a, b) => b.value.compareTo(a.value));
-
-    final top = sorted.first;
-
-    final percent = ((top.value / total) * 100).round();
-
-    String title;
-    String emoji;
-    String text;
-
-    switch (top.key) {
-      case "food":
-        title = "The Foodie";
-        emoji = "🍔";
-        text = "$percent% of your spending is on food.";
-        break;
-
-      case "travel":
-        title = "The Traveller";
-        emoji = "✈️";
-        text = "$percent% spent on travel.";
-        break;
-
-      case "grocery":
-        title = "The Home Manager";
-        emoji = "🛒";
-        text = "$percent% spent on groceries.";
-        break;
-
-      case "entertainment":
-        title = "The Fun Lover";
-        emoji = "🎬";
-        text = "$percent% spent on entertainment.";
-        break;
-
-      default:
-        title = "The Explorer";
-        emoji = "💳";
-        text = "$percent% of your spending is miscellaneous.";
-    }
-
-    final user = s.currentGroupUsers.firstWhere(
-      (u) => u.id == currentUser,
-      orElse: () => UserModel(id: currentUser, name: currentUser),
-    );
-
-    return Container(
-      padding: const EdgeInsets.all(18),
-      decoration: BoxDecoration(
-        color: const Color(0xFFF1F5F9), // soft slate background
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: const Color(0xFFE2E8F0)),
-      ),
-      child: Row(
-        children: [
-          CircleAvatar(radius: 30, backgroundImage: NetworkImage(user.avatar)),
-
-          const SizedBox(width: 16),
-
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  "${user.name}: $title $emoji",
-                  style: const TextStyle(
-                    fontWeight: FontWeight.bold,
-                    fontSize: 16,
-                  ),
-                ),
-
-                const SizedBox(height: 4),
-
-                Text(text, style: const TextStyle(fontSize: 13)),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
   }
 
   Map<String, double> _calculateCurrentUserDebts(ExpenseService s) {
@@ -1779,87 +2088,60 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
 
   Widget _buildExpenseDetails(ExpenseService s, ExpenseModel exp) {
     Map<String, double> splits = exp.splits ?? {};
-
     if (splits.isEmpty && exp.participants.isNotEmpty) {
       final equalShare = exp.total / exp.participants.length;
-
       splits = {for (var id in exp.participants) id: equalShare};
     }
-
     return AnimatedContainer(
       duration: const Duration(milliseconds: 250),
-      padding: const EdgeInsets.all(16),
-
+      padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
-        /// SOFT SURFACE COLOR
         color: const Color(0xFFF1F5F9),
-
-        borderRadius: BorderRadius.circular(18),
-
-        /// SUBTLE BORDER
+        borderRadius: BorderRadius.circular(14),
         border: Border.all(color: const Color(0xFFE2E8F0)),
-
-        /// PREMIUM SHADOW
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.12),
-            blurRadius: 20,
-            offset: const Offset(0, 10),
-          ),
-        ],
       ),
-
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          /// HEADER
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
               Text(
-                exp.note,
+                exp.note ?? 'Expense',
                 style: const TextStyle(
-                  fontSize: 15,
+                  fontSize: 14,
                   fontWeight: FontWeight.bold,
-                  color: Color(0xFF0F172A),
                 ),
               ),
-
               Container(
                 padding: const EdgeInsets.symmetric(
                   horizontal: 10,
-                  vertical: 4,
+                  vertical: 3,
                 ),
-
                 decoration: BoxDecoration(
                   color: const Color(0xFFE0E7FF),
                   borderRadius: BorderRadius.circular(20),
                 ),
-
                 child: Text(
-                  "₹${exp.total.toStringAsFixed(0)}",
+                  '₹${exp.total.toStringAsFixed(0)}',
                   style: const TextStyle(
                     color: Color(0xFF4338CA),
                     fontWeight: FontWeight.bold,
+                    fontSize: 13,
                   ),
                 ),
               ),
             ],
           ),
-
-          const SizedBox(height: 12),
-
+          const SizedBox(height: 10),
           ...splits.entries.map((entry) {
             final user = s.currentGroupUsers.firstWhere(
               (u) => u.id == entry.key,
               orElse: () => UserModel(id: entry.key, name: entry.key),
             );
-
             final isPayer = entry.key == exp.payerId;
-
             return Padding(
-              padding: const EdgeInsets.symmetric(vertical: 4),
-
+              padding: const EdgeInsets.symmetric(vertical: 3),
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
@@ -1870,12 +2152,10 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
                       color: Color(0xFF334155),
                     ),
                   ),
-
                   Text(
                     isPayer
                         ? "paid ₹${entry.value.toStringAsFixed(0)}"
                         : "owes ₹${entry.value.toStringAsFixed(0)}",
-
                     style: TextStyle(
                       fontWeight: FontWeight.bold,
                       color: isPayer
@@ -1886,7 +2166,7 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
                 ],
               ),
             );
-          }).toList(),
+          }),
         ],
       ),
     );
@@ -1900,7 +2180,7 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
           DrawerHeader(
             decoration: BoxDecoration(
               gradient: LinearGradient(
-                colors: [AppColors.primary, Color(0xFF1D4ED8)],
+                colors: [AppColors.primary, const Color(0xFF1D4ED8)],
               ),
             ),
             child: const Align(
@@ -1915,20 +2195,53 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
               ),
             ),
           ),
-
           ...s.groups.map((g) {
             final selected = g.id == s.currentGroupId;
-
             return ListTile(
               leading: Icon(
                 Icons.group,
                 color: selected ? AppColors.primary : Colors.grey,
               ),
               title: Text(g.name),
-
               selected: selected,
-
               selectedTileColor: AppColors.primary.withOpacity(0.08),
+
+              trailing: s.groups.length > 1
+                  ? IconButton(
+                      icon: const Icon(Icons.delete_outline, color: Colors.red),
+                      onPressed: () async {
+                        bool confirm = false;
+
+                        await showDialog(
+                          context: context,
+                          builder: (ctx) => AlertDialog(
+                            title: const Text("Delete Group"),
+                            content: Text("Delete '${g.name}' group?"),
+                            actions: [
+                              TextButton(
+                                onPressed: () => Navigator.pop(ctx),
+                                child: const Text("Cancel"),
+                              ),
+                              ElevatedButton(
+                                style: ElevatedButton.styleFrom(
+                                  backgroundColor: Colors.red,
+                                ),
+                                onPressed: () {
+                                  confirm = true;
+                                  Navigator.pop(ctx);
+                                },
+                                child: const Text("Delete"),
+                              ),
+                            ],
+                          ),
+                        );
+
+                        if (confirm) {
+                          s.deleteGroup(g.id);
+                        }
+                      },
+                    )
+                  : null,
 
               onTap: () {
                 s.switchGroup(g.id);
@@ -1936,17 +2249,13 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
               },
             );
           }),
-
           const Divider(),
-
           ListTile(
             leading: const Icon(Icons.add),
             title: const Text("Create Group"),
             onTap: () {
               Navigator.pop(context);
-
               final ctrl = TextEditingController();
-
               showDialog(
                 context: context,
                 builder: (_) => AlertDialog(
@@ -2033,9 +2342,9 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
   }
 }
 
+// ─── Animated check ─────────────────────────────────────────────────────────
 class _AnimatedCheck extends StatefulWidget {
   const _AnimatedCheck();
-
   @override
   State<_AnimatedCheck> createState() => _AnimatedCheckState();
 }
@@ -2043,7 +2352,6 @@ class _AnimatedCheck extends StatefulWidget {
 class _AnimatedCheckState extends State<_AnimatedCheck>
     with SingleTickerProviderStateMixin {
   late AnimationController controller;
-
   @override
   void initState() {
     super.initState();
@@ -2054,10 +2362,8 @@ class _AnimatedCheckState extends State<_AnimatedCheck>
   }
 
   @override
-  Widget build(BuildContext context) {
-    return CustomPaint(painter: _CheckPainter(controller));
-  }
-
+  Widget build(BuildContext context) =>
+      CustomPaint(painter: _CheckPainter(controller));
   @override
   void dispose() {
     controller.dispose();
@@ -2067,9 +2373,7 @@ class _AnimatedCheckState extends State<_AnimatedCheck>
 
 class _CheckPainter extends CustomPainter {
   final Animation<double> animation;
-
   _CheckPainter(this.animation) : super(repaint: animation);
-
   @override
   void paint(Canvas canvas, Size size) {
     final paint = Paint()
@@ -2077,19 +2381,58 @@ class _CheckPainter extends CustomPainter {
       ..strokeWidth = 8
       ..strokeCap = StrokeCap.round
       ..style = PaintingStyle.stroke;
-
     final path = Path();
-
     path.moveTo(size.width * 0.28, size.height * 0.52);
     path.lineTo(size.width * 0.45, size.height * 0.68);
     path.lineTo(size.width * 0.72, size.height * 0.38);
-
     final metric = path.computeMetrics().first;
-    final extractPath = metric.extractPath(0, metric.length * animation.value);
-
-    canvas.drawPath(extractPath, paint);
+    canvas.drawPath(
+      metric.extractPath(0, metric.length * animation.value),
+      paint,
+    );
   }
 
   @override
   bool shouldRepaint(covariant CustomPainter oldDelegate) => true;
+}
+
+// ─── Stat card (kept for backward compat, now replaced by grid) ─────────────
+Widget _statCard({
+  required String title,
+  required String amount,
+  required IconData icon,
+  required Color color,
+}) {
+  return Container(
+    width: 140,
+    padding: const EdgeInsets.all(16),
+    decoration: BoxDecoration(
+      color: Colors.white,
+      borderRadius: BorderRadius.circular(14),
+      border: Border.all(color: const Color(0xFFE5E7EB)),
+      boxShadow: [
+        BoxShadow(color: Colors.black.withOpacity(0.03), blurRadius: 6),
+      ],
+    ),
+    child: Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Icon(icon, color: color, size: 22),
+        const SizedBox(height: 8),
+        Text(
+          title,
+          style: const TextStyle(fontSize: 12, color: Color(0xFF9CA3AF)),
+        ),
+        const SizedBox(height: 4),
+        Text(
+          amount,
+          style: TextStyle(
+            fontWeight: FontWeight.bold,
+            fontSize: 18,
+            color: color,
+          ),
+        ),
+      ],
+    ),
+  );
 }

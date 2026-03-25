@@ -257,12 +257,29 @@ class ExpenseService extends ChangeNotifier {
         senderId: payerId,
         senderName: payer.name,
         message:
-            '💰 ${payer.name} paid ₹${total.toStringAsFixed(2)} for "$note"',
+            '💰 Paid ₹${total.toStringAsFixed(2)} for "$note"',
         groupId: currentGroupId,
         timestamp: DateTime.now(),
       ),
     );
 
+    notifyListeners();
+  }
+
+void deleteGroup(String groupId) {
+    if (groups.length <= 1) return; // prevent deleting last group
+
+    groups.removeWhere((g) => g.id == groupId);
+
+    // switch to first remaining group
+    currentGroupId = groups.first.id;
+
+    // remove expenses, messages, payments of that group
+    expenses.removeWhere((e) => e.groupId == groupId);
+    messages.removeWhere((m) => m.groupId == groupId);
+    payments.removeWhere((p) => p.groupId == groupId);
+
+    _recalcNet();
     notifyListeners();
   }
 
